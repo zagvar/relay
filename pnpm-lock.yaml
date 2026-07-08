@@ -245,6 +245,16 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  packages/ws:
+    dependencies:
+      '@zagvar/relay-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
 packages:
 
   '@emnapi/core@1.11.1':
