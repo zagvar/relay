@@ -1,0 +1,61 @@
+import { MARKET_EVENT_CHANNEL, createRelayMessage } from "./event_channel.js";
+import type { RelayEventBus } from "./event_bus.js";
+import type { MarketDataCache } from "./market_data_cache.js";
+import type {
+  MarketBar,
+  MarketClock,
+  MarketEvent,
+  MarketSnapshot,
+  MarketTrade,
+} from "./market_data.js";
+
+/** Runtime dependencies needed to process normalized market events. */
+export interface MarketDataPipelineOptions {
+  readonly cache: MarketDataCache;
+  readonly eventBus: RelayEventBus;
+}
+
+/** Processes normalized market events into cache and pub/sub outputs. */
+export class MarketDataPipeline {
+  readonly #cache: MarketDataCache;
+  readonly #eventBus: RelayEventBus;
+
+  constructor(options: MarketDataPipelineOptions) {
+    this.#cache = options.cache;
+    this.#eventBus = options.eventBus;
+  }
+
+  /** Stores and publishes one normalized market event. */
+  async processEvent(event: MarketEvent): Promise<void> {
+    switch (event.type) {
+      case "trade":
+        await this.#processTrade(event);
+        return;
+      case "bar":
+        await this.#processBar(event);
+        return;
+    }
+  }
+
+  /** Stores and publishes latest snapshots. */
+  async processSnapshots(snapshots: Readonly<Record<string, MarketSnapshot>>): Promise<void> {
+    await this.#cache.setSnapshots(snapshots);
+    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.snapshot, snapshots));
+  }
+
+  /** Stores and publishes the latest market clock. */
+  async processMarketClock(clock: MarketClock): Promise<void> {
+    await this.#cache.setMarketClock(clock);
+    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketClock, clock));
+  }
+
+  async #processTrade(trade: MarketTrade): Promise<void> {
+    await this.#cache.setLatestTrade(trade);
+    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, trade));
+  }
+
+  async #processBar(bar: MarketBar): Promise<void> {
+    await this.#cache.appendBar(bar);
+    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.bar, bar));
+  }
+}

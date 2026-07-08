@@ -1,0 +1,30 @@
+{
+  "name": "relay",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Market data relay primitives for trading applications.",
+  "type": "module",
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm --recursive build",
+    "check": "pnpm --recursive check",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "pnpm --recursive test",
+    "test:run": "pnpm --recursive test:run"
+  },
+  "keywords": [],
+  "author": "zayau",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.6.0",
+    "prettier": "^3.9.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.1",
+    "vitest": "^4.1.10"
+  }
+}
