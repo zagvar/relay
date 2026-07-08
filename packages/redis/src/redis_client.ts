@@ -6,6 +6,8 @@ export interface RedisCacheClient {
   get(key: string): Promise<string | null>;
   zAdd(key: string, members: RedisSortedSetMember[]): Promise<number>;
   zRange(key: string, start: number, stop: number): Promise<string[]>;
+  zRemRangeByRank(key: string, start: number, stop: number): Promise<number>;
+  expire(key: string, seconds: number): Promise<number>;
 }
 
 /** Minimal SET options used by node-redis. */

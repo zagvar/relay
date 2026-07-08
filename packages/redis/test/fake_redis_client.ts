@@ -14,6 +14,7 @@ export class FakeRedisClient implements RedisCacheClient {
   readonly #hashes = new Map<string, Map<string, string>>();
   readonly #strings = new Map<string, StoredValue>();
   readonly #sortedSets = new Map<string, RedisSortedSetMember[]>();
+  readonly #sortedSetExpiresAtMs = new Map<string, number>();
   #nowMs = 0;
 
   advanceTime(ms: number): void {
@@ -69,9 +70,42 @@ export class FakeRedisClient implements RedisCacheClient {
   }
 
   zRange(key: string, start: number, stop: number): Promise<string[]> {
+    const expiresAtMs = this.#sortedSetExpiresAtMs.get(key);
+
+    if (expiresAtMs !== undefined && this.#nowMs >= expiresAtMs) {
+      this.#sortedSets.delete(key);
+      this.#sortedSetExpiresAtMs.delete(key);
+      return Promise.resolve([]);
+    }
+
     const sortedSet = this.#sortedSets.get(key) ?? [];
     const normalizedStop = stop === -1 ? sortedSet.length : stop + 1;
 
     return Promise.resolve(sortedSet.slice(start, normalizedStop).map((member) => member.value));
+  }
+
+  zRemRangeByRank(key: string, start: number, stop: number): Promise<number> {
+    const sortedSet = this.#sortedSets.get(key) ?? [];
+    const normalizedStop = stop < 0 ? sortedSet.length + stop : stop;
+    const deleteCount = Math.max(0, normalizedStop - start + 1);
+
+    sortedSet.splice(start, deleteCount);
+
+    if (sortedSet.length === 0) {
+      this.#sortedSets.delete(key);
+    } else {
+      this.#sortedSets.set(key, sortedSet);
+    }
+
+    return Promise.resolve(deleteCount);
+  }
+
+  expire(key: string, seconds: number): Promise<number> {
+    if (!this.#strings.has(key) && !this.#sortedSets.has(key)) {
+      return Promise.resolve(0);
+    }
+
+    this.#sortedSetExpiresAtMs.set(key, this.#nowMs + seconds * 1_000);
+    return Promise.resolve(1);
   }
 }

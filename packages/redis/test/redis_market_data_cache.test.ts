@@ -111,4 +111,100 @@ describe("RedisMarketDataCache", () => {
 
     expect(await cache.getMarketClock()).toBeUndefined();
   });
+
+  it("trims bars using timeframe-specific maxBars", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({
+      client,
+      barRetention: {
+        byTimeframe: {
+          "1Min": { maxBars: 2 },
+        },
+      },
+    });
+
+    const createBar = (timestamp: string): MarketBar => ({
+      type: "bar",
+      symbol: "AAPL",
+      timeframe: "1Min",
+      open: 190,
+      high: 196,
+      low: 189,
+      close: 195,
+      volume: 120_000,
+      timestamp,
+    });
+
+    const firstBar = createBar("2026-01-01T14:30:00.000Z");
+    const secondBar = createBar("2026-01-01T14:31:00.000Z");
+    const thirdBar = createBar("2026-01-01T14:32:00.000Z");
+
+    await cache.appendBar(firstBar);
+    await cache.appendBar(secondBar);
+    await cache.appendBar(thirdBar);
+
+    expect(await cache.getBars("AAPL", "1Min")).toEqual([secondBar, thirdBar]);
+  });
+
+  it("expires bars using timeframe-specific ttl", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({
+      client,
+      barRetention: {
+        byTimeframe: {
+          "1Min": { ttlSeconds: 5 },
+        },
+      },
+    });
+
+    const bar: MarketBar = {
+      type: "bar",
+      symbol: "AAPL",
+      timeframe: "1Min",
+      open: 190,
+      high: 196,
+      low: 189,
+      close: 195,
+      volume: 120_000,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.appendBar(bar);
+
+    client.advanceTime(5_000);
+
+    expect(await cache.getBars("AAPL", "1Min")).toEqual([]);
+  });
+
+  it("uses default bar retention when timeframe override is missing", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({
+      client,
+      barRetention: {
+        default: { maxBars: 1 },
+      },
+    });
+
+    const firstBar: MarketBar = {
+      type: "bar",
+      symbol: "AAPL",
+      timeframe: "5Min",
+      open: 190,
+      high: 196,
+      low: 189,
+      close: 195,
+      volume: 120_000,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const secondBar: MarketBar = {
+      ...firstBar,
+      timestamp: "2026-01-01T14:35:00.000Z",
+    };
+
+    await cache.appendBar(firstBar);
+    await cache.appendBar(secondBar);
+
+    expect(await cache.getBars("AAPL", "5Min")).toEqual([secondBar]);
+  });
 });

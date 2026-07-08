@@ -9,12 +9,24 @@ import type {
 import { RelayRedisKeys, type RelayRedisKeyOptions } from "./redis_keys.js";
 import type { RedisCacheClient } from "./redis_client.js";
 
+/** Retention policy for cached bar series. */
+export interface BarRetentionPolicy {
+  readonly maxBars?: number;
+  readonly ttlSeconds?: number;
+}
+
+/** Timeframe-specific bar retention configuration. */
+export interface BarRetentionOptions {
+  readonly default?: BarRetentionPolicy;
+  readonly byTimeframe?: Readonly<Record<string, BarRetentionPolicy>>;
+}
+
 /** Options for RedisMarketDataCache. */
 export interface RedisMarketDataCacheOptions extends RelayRedisKeyOptions {
   readonly client: RedisCacheClient;
   readonly snapshotTtlSeconds?: number;
   readonly marketClockTtlSeconds?: number;
-  readonly barLimit?: number;
+  readonly barRetention?: BarRetentionOptions;
 }
 
 /** Redis-backed implementation of Relay's market data cache contract. */
@@ -23,7 +35,7 @@ export class RedisMarketDataCache implements MarketDataCache {
   readonly #keys: RelayRedisKeys;
   readonly #snapshotTtlSeconds: number | undefined;
   readonly #marketClockTtlSeconds: number | undefined;
-  readonly #barLimit: number | undefined;
+  readonly #barRetention: BarRetentionOptions | undefined;
 
   constructor(options: RedisMarketDataCacheOptions) {
     this.#client = options.client;
@@ -33,7 +45,7 @@ export class RedisMarketDataCache implements MarketDataCache {
         : new RelayRedisKeys({ prefix: options.prefix });
     this.#snapshotTtlSeconds = options.snapshotTtlSeconds;
     this.#marketClockTtlSeconds = options.marketClockTtlSeconds;
-    this.#barLimit = options.barLimit;
+    this.#barRetention = options.barRetention;
   }
 
   async setLatestTrade(trade: MarketTrade): Promise<void> {
@@ -67,12 +79,17 @@ export class RedisMarketDataCache implements MarketDataCache {
   async appendBar(bar: MarketBar): Promise<void> {
     const key = this.#keys.bars(bar.symbol, bar.timeframe);
     const score = new Date(bar.timestamp).getTime();
+    const retentionPolicy = this.#getBarRetentionPolicy(bar.timeframe);
 
     await this.#client.zAdd(key, [{ score, value: JSON.stringify(bar) }]);
 
-    // Trimming is intentionally deferred until we expose the extra Redis commands
-    // in the client interface. The first version keeps writes simple and portable.
-    void this.#barLimit;
+    if (retentionPolicy.maxBars !== undefined) {
+      await this.#client.zRemRangeByRank(key, 0, -(retentionPolicy.maxBars + 1));
+    }
+
+    if (retentionPolicy.ttlSeconds !== undefined) {
+      await this.#client.expire(key, retentionPolicy.ttlSeconds);
+    }
   }
 
   async getBars(symbol: string, timeframe: string): Promise<readonly MarketBar[]> {
@@ -100,5 +117,12 @@ export class RedisMarketDataCache implements MarketDataCache {
     }
 
     await this.#client.set(key, serializedValue, { EX: ttlSeconds });
+  }
+
+  #getBarRetentionPolicy(timeframe: string): BarRetentionPolicy {
+    return {
+      ...this.#barRetention?.default,
+      ...this.#barRetention?.byTimeframe?.[timeframe],
+    };
   }
 }
