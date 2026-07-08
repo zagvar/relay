@@ -41,7 +41,10 @@ export class RedisRelayEventBus implements RelayEventBus {
     );
   }
 
-  subscribe<TData>(channel: MarketEventChannel, handler: RelayMessageHandler<TData>): Unsubscribe {
+  async subscribe<TData>(
+    channel: MarketEventChannel,
+    handler: RelayMessageHandler<TData>,
+  ): Promise<Unsubscribe> {
     const redisChannel = this.#keys.eventChannel(channel);
 
     const redisHandler: RedisMessageHandler = async (rawMessage) => {
@@ -54,7 +57,7 @@ export class RedisRelayEventBus implements RelayEventBus {
     handlers.add(redisHandler);
     this.#handlersByChannel.set(channel, handlers);
 
-    void this.#subscriber.subscribe(redisChannel, redisHandler);
+    await this.#subscriber.subscribe(redisChannel, redisHandler);
 
     return () => {
       handlers.delete(redisHandler);
@@ -63,7 +66,7 @@ export class RedisRelayEventBus implements RelayEventBus {
         this.#handlersByChannel.delete(channel);
       }
 
-      void this.#subscriber.unsubscribe(redisChannel, redisHandler);
+      return this.#subscriber.unsubscribe(redisChannel, redisHandler);
     };
   }
 }

@@ -12,7 +12,7 @@ describe("RedisRelayEventBus", () => {
     });
     const receivedMessages: unknown[] = [];
 
-    eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
       receivedMessages.push(message);
     });
 
@@ -40,7 +40,7 @@ describe("RedisRelayEventBus", () => {
     });
     const receivedMessages: unknown[] = [];
 
-    eventBus.subscribe(MARKET_EVENT_CHANNEL.bar, (message) => {
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.bar, (message) => {
       receivedMessages.push(message);
     });
 
@@ -61,11 +61,11 @@ describe("RedisRelayEventBus", () => {
     });
     const receivedMessages: unknown[] = [];
 
-    const unsubscribe = eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
+    const unsubscribe = await eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
       receivedMessages.push(message);
     });
 
-    unsubscribe();
+    await unsubscribe();
 
     await eventBus.publish(
       createRelayMessage(MARKET_EVENT_CHANNEL.trade, {
@@ -85,7 +85,7 @@ describe("RedisRelayEventBus", () => {
     });
     const receivedMessages: unknown[] = [];
 
-    eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
       receivedMessages.push(message);
     });
 

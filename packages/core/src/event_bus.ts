@@ -6,7 +6,7 @@ export type RelayMessageHandler<TData = unknown> = (
 ) => void | Promise<void>;
 
 /** Stops an active event bus subscription. */
-export type Unsubscribe = () => void;
+export type Unsubscribe = () => Promise<void>;
 
 /** Provider-neutral publish/subscribe contract for Relay messages. */
 export interface RelayEventBus {
@@ -14,7 +14,10 @@ export interface RelayEventBus {
   publish<TData>(message: RelayMessage<TData>): Promise<void>;
 
   /** Subscribes to messages for one channel. */
-  subscribe<TData>(channel: MarketEventChannel, handler: RelayMessageHandler<TData>): Unsubscribe;
+  subscribe<TData>(
+    channel: MarketEventChannel,
+    handler: RelayMessageHandler<TData>,
+  ): Promise<Unsubscribe>;
 }
 
 /** In-memory event bus for tests, examples, and single-process demos. */
@@ -33,18 +36,23 @@ export class MemoryRelayEventBus implements RelayEventBus {
     );
   }
 
-  subscribe<TData>(channel: MarketEventChannel, handler: RelayMessageHandler<TData>): Unsubscribe {
+  subscribe<TData>(
+    channel: MarketEventChannel,
+    handler: RelayMessageHandler<TData>,
+  ): Promise<Unsubscribe> {
     const handlers = this.#handlersByChannel.get(channel) ?? new Set();
 
     handlers.add(handler as RelayMessageHandler);
     this.#handlersByChannel.set(channel, handlers);
 
-    return () => {
+    return Promise.resolve(() => {
       handlers.delete(handler as RelayMessageHandler);
 
       if (handlers.size === 0) {
         this.#handlersByChannel.delete(channel);
       }
-    };
+
+      return Promise.resolve();
+    });
   }
 }

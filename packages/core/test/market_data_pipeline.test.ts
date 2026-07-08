@@ -12,7 +12,7 @@ describe("MarketDataPipeline", () => {
     const pipeline = new MarketDataPipeline({ cache, eventBus });
     const publishedMessages: unknown[] = [];
 
-    eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
       publishedMessages.push(message);
     });
 
@@ -41,7 +41,7 @@ describe("MarketDataPipeline", () => {
     const pipeline = new MarketDataPipeline({ cache, eventBus });
     const publishedMessages: unknown[] = [];
 
-    eventBus.subscribe(MARKET_EVENT_CHANNEL.bar, (message) => {
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.bar, (message) => {
       publishedMessages.push(message);
     });
 
@@ -74,7 +74,7 @@ describe("MarketDataPipeline", () => {
     const pipeline = new MarketDataPipeline({ cache, eventBus });
     const publishedMessages: unknown[] = [];
 
-    eventBus.subscribe(MARKET_EVENT_CHANNEL.snapshot, (message) => {
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.snapshot, (message) => {
       publishedMessages.push(message);
     });
 
@@ -103,7 +103,7 @@ describe("MarketDataPipeline", () => {
     const pipeline = new MarketDataPipeline({ cache, eventBus });
     const publishedMessages: unknown[] = [];
 
-    eventBus.subscribe(MARKET_EVENT_CHANNEL.marketClock, (message) => {
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.marketClock, (message) => {
       publishedMessages.push(message);
     });
 
