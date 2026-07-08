@@ -35,7 +35,7 @@ export interface MarketDataProvider {
   readonly capabilities: ProviderCapabilities;
 
   /** Returns latest snapshots keyed by normalized symbol. */
-  getSnapshots(symbols: readonly string[]): Promise<Record<string, MarketSnapshot>>;
+  getSnapshots(symbols: readonly string[]): Promise<Readonly<Record<string, MarketSnapshot>>>;
 
   /** Returns historical bars for a symbol and timeframe. */
   getBars(request: BarsRequest): Promise<readonly MarketBar[]>;

@@ -1,4 +1,5 @@
 import type { MarketBar, MarketClock, MarketSnapshot, MarketTrade } from "./market_data.js";
+import { normalizeSymbol } from "./symbols.js";
 
 /** Provider-neutral cache contract for latest market data. */
 export interface MarketDataCache {
@@ -35,16 +36,18 @@ export class MemoryMarketDataCache implements MarketDataCache {
   #marketClock: MarketClock | undefined;
 
   setLatestTrade(trade: MarketTrade): Promise<void> {
-    this.#latestTradesBySymbol.set(trade.symbol, trade);
+    this.#latestTradesBySymbol.set(normalizeSymbol(trade.symbol), trade);
     return Promise.resolve();
   }
 
   getLatestTrade(symbol: string): Promise<MarketTrade | undefined> {
-    return Promise.resolve(this.#latestTradesBySymbol.get(symbol));
+    return Promise.resolve(this.#latestTradesBySymbol.get(normalizeSymbol(symbol)));
   }
 
   setSnapshots(snapshots: Readonly<Record<string, MarketSnapshot>>): Promise<void> {
-    this.#snapshots = { ...snapshots };
+    this.#snapshots = Object.fromEntries(
+      Object.entries(snapshots).map(([symbol, snapshot]) => [normalizeSymbol(symbol), snapshot]),
+    );
     return Promise.resolve();
   }
 
@@ -77,5 +80,5 @@ export class MemoryMarketDataCache implements MarketDataCache {
 }
 
 function createBarsKey(symbol: string, timeframe: string): string {
-  return `${symbol}:${timeframe}`;
+  return `${normalizeSymbol(symbol)}:${timeframe}`;
 }

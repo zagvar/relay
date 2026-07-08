@@ -65,4 +65,38 @@ describe("MemoryMarketDataCache", () => {
 
     expect(await cache.getMarketClock()).toEqual(clock);
   });
+
+  it("normalizes latest trade lookup symbols", async () => {
+    const cache = new MemoryMarketDataCache();
+    const trade: MarketTrade = {
+      type: "trade",
+      symbol: "aapl",
+      price: 195.12,
+      size: 100,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.setLatestTrade(trade);
+
+    expect(await cache.getLatestTrade("AAPL")).toEqual(trade);
+  });
+
+  it("normalizes bar lookup symbols", async () => {
+    const cache = new MemoryMarketDataCache();
+    const bar: MarketBar = {
+      type: "bar",
+      symbol: "aapl",
+      timeframe: "1Min",
+      open: 190,
+      high: 196,
+      low: 189,
+      close: 195,
+      volume: 120_000,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.appendBar(bar);
+
+    expect(await cache.getBars("AAPL", "1Min")).toEqual([bar]);
+  });
 });
