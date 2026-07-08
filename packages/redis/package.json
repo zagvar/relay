@@ -1,0 +1,33 @@
+{
+  "name": "@zagvar/relay-redis",
+  "version": "0.0.0",
+  "description": "Redis-backed cache and pub/sub implementations for Zagvar Relay.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@zagvar/relay-core": "workspace:*",
+    "redis": "^6.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
