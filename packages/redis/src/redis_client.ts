@@ -20,3 +20,17 @@ export interface RedisSortedSetMember {
   readonly score: number;
   readonly value: string;
 }
+
+/** Handles raw Redis Pub/Sub messages. */
+export type RedisMessageHandler = (message: string) => void | Promise<void>;
+
+/** Minimal Redis publish client needed by RedisRelayEventBus. */
+export interface RedisPublishClient {
+  publish(channel: string, message: string): Promise<number>;
+}
+
+/** Minimal Redis subscribe client needed by RedisRelayEventBus. */
+export interface RedisSubscribeClient {
+  subscribe(channel: string, handler: RedisMessageHandler): Promise<void>;
+  unsubscribe(channel: string, handler?: RedisMessageHandler): Promise<void>;
+}

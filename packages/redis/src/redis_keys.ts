@@ -28,4 +28,8 @@ export class RelayRedisKeys {
   bars(symbol: string, timeframe: string): string {
     return `${this.#prefix}:market:bars:${normalizeSymbol(symbol)}:${timeframe}`;
   }
+
+  eventChannel(channel: string): string {
+    return `${this.#prefix}:events:${channel}`;
+  }
 }
