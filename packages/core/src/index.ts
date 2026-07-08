@@ -46,3 +46,15 @@ export type { MarketDataCache } from "./market_data_cache.js";
 export { MarketDataPipeline } from "./market_data_pipeline.js";
 
 export type { MarketDataPipelineOptions } from "./market_data_pipeline.js";
+
+export { MarketDataHydrator } from "./market_data_hydration.js";
+
+export type {
+  BarsHydrationRequest,
+  MarketDataHydration,
+  MarketDataHydrationRequest,
+} from "./market_data_hydration.js";
+
+export { MarketDataSubscriptionState, createBarSubscriptionKey } from "./subscription.js";
+
+export type { BarSubscription } from "./subscription.js";
