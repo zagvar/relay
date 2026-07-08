@@ -1,8 +1,15 @@
-/** A normalized tradable market symbol */
-export interface MarketSymbol {
+/** A broad asset class supported by market data providers. */
+export type AssetClass =
+  "equity" | "crypto" | "fx" | "commodity" | "index" | "fund" | "option" | "future" | "other";
+
+/** Provider-neutral identity for a market instrument. */
+export interface MarketInstrument {
   readonly symbol: string;
+  readonly assetClass?: AssetClass;
   readonly exchange?: string;
   readonly currency?: string;
+  readonly baseAsset?: string;
+  readonly quoteAsset?: string;
 }
 
 /** A normalized latest trade event from a market data provider. */
@@ -12,7 +19,11 @@ export interface MarketTrade {
   readonly price: number;
   readonly size: number;
   readonly timestamp: string;
+  readonly assetClass?: AssetClass;
   readonly exchange?: string;
+  readonly currency?: string;
+  readonly baseAsset?: string;
+  readonly quoteAsset?: string;
   readonly providerTradeId?: string;
 }
 
@@ -27,14 +38,24 @@ export interface MarketBar {
   readonly close: number;
   readonly volume: number;
   readonly timestamp: string;
+  readonly assetClass?: AssetClass;
+  readonly exchange?: string;
+  readonly currency?: string;
+  readonly baseAsset?: string;
+  readonly quoteAsset?: string;
   readonly tradeCount?: number;
-  readonly volumeWeightedAveragePrice?: string;
+  readonly volumeWeightedAveragePrice?: number;
 }
 
 /** A normalized market snapshot suitable for initial client hydration. */
 export interface MarketSnapshot {
   readonly symbol: string;
   readonly price: number;
+  readonly assetClass?: AssetClass;
+  readonly exchange?: string;
+  readonly currency?: string;
+  readonly baseAsset?: string;
+  readonly quoteAsset?: string;
   readonly size?: number;
   readonly timestamp?: string;
   readonly open?: number;

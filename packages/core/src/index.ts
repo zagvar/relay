@@ -1,10 +1,11 @@
 export type {
+  AssetClass,
   BarsRequest,
   MarketBar,
   MarketClock,
   MarketEvent,
+  MarketInstrument,
   MarketSnapshot,
-  MarketSymbol,
   MarketTrade,
 } from "./market_data.js";
 

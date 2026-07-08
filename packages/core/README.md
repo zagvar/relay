@@ -7,6 +7,7 @@ This package defines the shared language used by Relay adapters, caches, event b
 ## Current Scope
 
 - Normalized market data types
+- Asset-class-neutral instrument metadata
 - Provider capability contracts
 - Event channel names
 - In-memory event bus for tests and demos
