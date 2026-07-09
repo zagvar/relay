@@ -3,6 +3,7 @@ import type {
   MarketDataHydrationRequest,
   MarketEventChannel,
 } from "@zagvar/relay-core";
+import { isRecord, isStringArray } from "./type_guards.js";
 
 /** Client message sent over a Relay WebSocket connection. */
 export type RelayClientMessage =
@@ -97,10 +98,7 @@ function parseChannelsMessage(
 function parseSymbolsMessage(
   message: Record<string, unknown>,
 ): SubscribeTradesMessage | UnsubscribeTradesMessage {
-  if (
-    !Array.isArray(message.symbols) ||
-    !message.symbols.every((symbol) => typeof symbol === "string")
-  ) {
+  if (!isStringArray(message.symbols)) {
     throw new Error("Client message symbols must be an array of strings.");
   }
 
@@ -124,8 +122,8 @@ function parseBarsMessage(
 }
 
 function parseHydrateMessage(message: Record<string, unknown>): HydrateMessage {
-  if (!isRecord(message.request)) {
-    throw new Error("Client message request must be an object.");
+  if (!isMarketDataHydrationRequest(message.request)) {
+    throw new Error("Client message request must be a hydration request.");
   }
 
   return {
@@ -138,6 +136,32 @@ function isBarsHydrationRequest(value: unknown): value is BarsHydrationRequest {
   return isRecord(value) && typeof value.symbol === "string" && typeof value.timeframe === "string";
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+function isMarketDataHydrationRequest(value: unknown): value is MarketDataHydrationRequest {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value.symbols !== undefined && !isStringArray(value.symbols)) {
+    return false;
+  }
+
+  if (value.bars !== undefined) {
+    if (!Array.isArray(value.bars) || !value.bars.every(isBarsHydrationRequest)) {
+      return false;
+    }
+  }
+
+  if (value.includeSnapshots !== undefined && typeof value.includeSnapshots !== "boolean") {
+    return false;
+  }
+
+  if (value.includeLatestTrades !== undefined && typeof value.includeLatestTrades !== "boolean") {
+    return false;
+  }
+
+  if (value.includeMarketClock !== undefined && typeof value.includeMarketClock !== "boolean") {
+    return false;
+  }
+
+  return true;
 }

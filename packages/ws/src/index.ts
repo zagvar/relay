@@ -10,3 +10,9 @@ export type {
   UnsubscribeChannelsMessage,
   UnsubscribeTradesMessage,
 } from "./client_message.js";
+
+export { RelayClientSession } from "./client_session.js";
+export { sendJson } from "./socket.js";
+
+export type { RelayClientSessionOptions } from "./client_session.js";
+export type { RelaySocket } from "./socket.js";
