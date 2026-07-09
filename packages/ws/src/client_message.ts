@@ -9,6 +9,8 @@ import { isRecord, isStringArray } from "./type_guards.js";
 export type RelayClientMessage =
   | SubscribeChannelsMessage
   | UnsubscribeChannelsMessage
+  | SubscribeMarketSummariesMessage
+  | UnsubscribeMarketSummariesMessage
   | SubscribeQuotesMessage
   | UnsubscribeQuotesMessage
   | SubscribeTradesMessage
@@ -27,6 +29,18 @@ export interface SubscribeChannelsMessage {
 export interface UnsubscribeChannelsMessage {
   readonly type: "unsubscribe_channels";
   readonly channels: readonly MarketEventChannel[];
+}
+
+/** Subscribes the client to live market summaries. */
+export interface SubscribeMarketSummariesMessage {
+  readonly type: "subscribe_market_summaries";
+  readonly symbols: readonly string[];
+}
+
+/** Unsubscribes the client from live market summaries. */
+export interface UnsubscribeMarketSummariesMessage {
+  readonly type: "unsubscribe_market_summaries";
+  readonly symbols: readonly string[];
 }
 
 /** Subscribes the client to live quotes for symbols. */
@@ -83,6 +97,8 @@ export function parseRelayClientMessage(rawMessage: string): RelayClientMessage 
     case "subscribe_channels":
     case "unsubscribe_channels":
       return parseChannelsMessage(parsedMessage);
+    case "subscribe_market_summaries":
+    case "unsubscribe_market_summaries":
     case "subscribe_quotes":
     case "unsubscribe_quotes":
     case "subscribe_trades":
@@ -114,6 +130,8 @@ function parseChannelsMessage(
 function parseSymbolsMessage(
   message: Record<string, unknown>,
 ):
+  | SubscribeMarketSummariesMessage
+  | UnsubscribeMarketSummariesMessage
   | SubscribeTradesMessage
   | UnsubscribeTradesMessage
   | SubscribeQuotesMessage
@@ -124,7 +142,12 @@ function parseSymbolsMessage(
 
   return {
     type: message.type as
-      "subscribe_trades" | "unsubscribe_trades" | "subscribe_quotes" | "unsubscribe_quotes",
+      | "subscribe_market_summaries"
+      | "unsubscribe_market_summaries"
+      | "subscribe_trades"
+      | "unsubscribe_trades"
+      | "subscribe_quotes"
+      | "unsubscribe_quotes",
     symbols: message.symbols,
   };
 }

@@ -10,6 +10,7 @@ export interface BarSubscription {
 /** Tracks one client's market data subscriptions. */
 export class MarketDataSubscriptionState {
   readonly #channels = new Set<MarketEventChannel>();
+  readonly #marketSummarySymbols = new Set<string>();
   readonly #quoteSymbols = new Set<string>();
   readonly #tradeSymbols = new Set<string>();
   readonly #barKeys = new Set<string>();
@@ -17,6 +18,11 @@ export class MarketDataSubscriptionState {
   /** Returns subscribed channels in insertion order. */
   get channels(): readonly MarketEventChannel[] {
     return [...this.#channels];
+  }
+
+  /** Returns subscribed market-summary symbols. */
+  get marketSummarySymbols(): readonly string[] {
+    return [...this.#marketSummarySymbols];
   }
 
   /** Returns subscribed quote symbols in insertion order. */
@@ -47,6 +53,25 @@ export class MarketDataSubscriptionState {
   /** Returns true when this client is subscribed to a channel. */
   hasChannel(channel: MarketEventChannel): boolean {
     return this.#channels.has(channel);
+  }
+
+  /** Adds market-summary subscriptions. */
+  subscribeMarketSummaries(symbols: readonly string[]): void {
+    for (const symbol of symbols) {
+      this.#marketSummarySymbols.add(normalizeSymbol(symbol));
+    }
+  }
+
+  /** Removes market-summary subscriptions. */
+  unsubscribeMarketSummaries(symbols: readonly string[]): void {
+    for (const symbol of symbols) {
+      this.#marketSummarySymbols.delete(normalizeSymbol(symbol));
+    }
+  }
+
+  /** Returns true when subscribed to a symbol's market summary. */
+  hasMarketSummarySymbol(symbol: string): boolean {
+    return this.#marketSummarySymbols.has(normalizeSymbol(symbol));
   }
 
   /** Adds quote subscriptions for the provided symbols. */
@@ -105,6 +130,7 @@ export class MarketDataSubscriptionState {
   /** Removes all subscriptions. */
   clear(): void {
     this.#channels.clear();
+    this.#marketSummarySymbols.clear();
     this.#quoteSymbols.clear();
     this.#tradeSymbols.clear();
     this.#barKeys.clear();

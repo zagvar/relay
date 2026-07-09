@@ -16,6 +16,20 @@ describe("MarketDataSubscriptionState", () => {
     expect(state.hasChannel(MARKET_EVENT_CHANNEL.trade)).toBe(false);
   });
 
+  it("tracks normalized market-summary subscriptions", () => {
+    const state = new MarketDataSubscriptionState();
+
+    state.subscribeMarketSummaries([" aapl ", "msft"]);
+
+    expect(state.marketSummarySymbols).toEqual(["AAPL", "MSFT"]);
+    expect(state.hasMarketSummarySymbol("aapl")).toBe(true);
+
+    state.unsubscribeMarketSummaries(["AAPL"]);
+
+    expect(state.hasMarketSummarySymbol("AAPL")).toBe(false);
+    expect(state.hasMarketSummarySymbol("MSFT")).toBe(true);
+  });
+
   it("tracks normalized quote symbol subscriptions", () => {
     const state = new MarketDataSubscriptionState();
 
@@ -61,6 +75,7 @@ describe("MarketDataSubscriptionState", () => {
     const state = new MarketDataSubscriptionState();
 
     state.subscribeChannel(MARKET_EVENT_CHANNEL.trade);
+    state.subscribeMarketSummaries(["AAPL"]);
     state.subscribeQuotes(["AAPL"]);
     state.subscribeTrades(["AAPL"]);
     state.subscribeBars({ symbol: "AAPL", timeframe: "1Min" });
@@ -68,6 +83,7 @@ describe("MarketDataSubscriptionState", () => {
     state.clear();
 
     expect(state.channels).toEqual([]);
+    expect(state.marketSummarySymbols).toEqual([]);
     expect(state.quoteSymbols).toEqual([]);
     expect(state.tradeSymbols).toEqual([]);
     expect(state.barKeys).toEqual([]);

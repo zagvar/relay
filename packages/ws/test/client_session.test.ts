@@ -7,6 +7,7 @@ import {
   createRelayMessage,
   type MarketBar,
   type MarketQuote,
+  type MarketSummary,
   type MarketTrade,
 } from "@zagvar/relay-core";
 import { RelayClientSession } from "../src/client_session.js";
@@ -25,6 +26,53 @@ class FakeSocket implements RelaySocket {
 }
 
 describe("RelayClientSession", () => {
+  it("forwards subscribed market summaries until unsubscribed", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({ socket, eventBus });
+    const aaplSummary: MarketSummary = {
+      symbol: "AAPL",
+      price: 195.12,
+      previousClose: 190,
+    };
+    const msftSummary: MarketSummary = {
+      symbol: "MSFT",
+      price: 420.5,
+      previousClose: 415,
+    };
+
+    await session.start();
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_market_summaries",
+        symbols: ["AAPL"],
+      }),
+    );
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, aaplSummary));
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, msftSummary));
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "unsubscribe_market_summaries",
+        symbols: ["AAPL"],
+      }),
+    );
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, aaplSummary));
+
+    expect(socket.sentPayloads).toEqual([
+      {
+        type: "relay_message",
+        data: {
+          channel: "market_summary",
+          data: aaplSummary,
+        },
+      },
+    ]);
+  });
+
   it("forwards subscribed quotes until unsubscribed", async () => {
     const socket = new FakeSocket();
     const eventBus = new MemoryRelayEventBus();

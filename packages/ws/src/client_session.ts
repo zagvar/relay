@@ -77,6 +77,12 @@ export class RelayClientSession {
           this.#subscriptions.unsubscribeChannel(channel);
         }
         return;
+      case "subscribe_market_summaries":
+        this.#subscriptions.subscribeMarketSummaries(message.symbols);
+        return;
+      case "unsubscribe_market_summaries":
+        this.#subscriptions.unsubscribeMarketSummaries(message.symbols);
+        return;
       case "subscribe_quotes":
         this.#subscriptions.subscribeQuotes(message.symbols);
         return;
@@ -124,6 +130,10 @@ export class RelayClientSession {
   }
 
   #shouldForwardMessage(message: RelayMessage<unknown>): boolean {
+    if (message.channel === MARKET_EVENT_CHANNEL.marketSummary) {
+      return this.#shouldForwardMarketSummary(message.data);
+    }
+
     if (message.channel === MARKET_EVENT_CHANNEL.quote) {
       return this.#shouldForwardQuote(message.data);
     }
@@ -139,6 +149,12 @@ export class RelayClientSession {
     return this.#subscriptions.hasChannel(message.channel);
   }
 
+  #shouldForwardMarketSummary(data: unknown): boolean {
+    return (
+      isMarketSummaryEventData(data) && this.#subscriptions.hasMarketSummarySymbol(data.symbol)
+    );
+  }
+
   #shouldForwardQuote(data: unknown): boolean {
     return isQuoteEventData(data) && this.#subscriptions.hasQuoteSymbol(data.symbol);
   }
@@ -150,6 +166,10 @@ export class RelayClientSession {
   #shouldForwardBar(data: unknown): boolean {
     return isBarEventData(data) && this.#subscriptions.hasBarSubscription(data);
   }
+}
+
+interface MarketSummaryEventData {
+  readonly symbol: string;
 }
 
 interface QuoteEventData {
@@ -164,6 +184,10 @@ interface TradeEventData {
 
 interface BarEventData extends BarSubscription {
   readonly type: "bar";
+}
+
+function isMarketSummaryEventData(value: unknown): value is MarketSummaryEventData {
+  return isRecord(value) && typeof value.symbol === "string";
 }
 
 function isQuoteEventData(value: unknown): value is QuoteEventData {

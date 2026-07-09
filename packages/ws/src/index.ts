@@ -6,10 +6,12 @@ export type {
   SubscribeBarsMessage,
   SubscribeChannelsMessage,
   SubscribeQuotesMessage,
+  SubscribeMarketSummariesMessage,
   SubscribeTradesMessage,
   UnsubscribeBarsMessage,
   UnsubscribeChannelsMessage,
   UnsubscribeQuotesMessage,
+  UnsubscribeMarketSummariesMessage,
   UnsubscribeTradesMessage,
 } from "./client_message.js";
 
