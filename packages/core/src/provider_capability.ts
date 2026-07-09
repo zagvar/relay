@@ -1,6 +1,6 @@
 /** A provider feature that Relay can depend on. */
 export const PROVIDER_CAPABILITY = {
-  snapshots: "snapshots",
+  marketSummaries: "market_summaries",
   historicalBars: "historical_bars",
   marketClock: "market_clock",
   liveTrades: "live_trades",
@@ -13,7 +13,7 @@ export type ProviderCapability = (typeof PROVIDER_CAPABILITY)[keyof typeof PROVI
 
 /** Describes what a market data provider adapter can do. */
 export interface ProviderCapabilities {
-  readonly snapshots?: boolean;
+  readonly marketSummaries?: boolean;
   readonly historicalBars?: boolean;
   readonly marketClock?: boolean;
   readonly liveTrades?: boolean;
@@ -27,8 +27,8 @@ export function hasProviderCapability(
   capability: ProviderCapability,
 ): boolean {
   switch (capability) {
-    case PROVIDER_CAPABILITY.snapshots:
-      return capabilities.snapshots === true;
+    case PROVIDER_CAPABILITY.marketSummaries:
+      return capabilities.marketSummaries === true;
     case PROVIDER_CAPABILITY.historicalBars:
       return capabilities.historicalBars === true;
     case PROVIDER_CAPABILITY.marketClock:

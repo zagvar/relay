@@ -1,27 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { MemoryMarketDataCache } from "../src/market_data_cache.js";
 import { MarketDataHydrator } from "../src/market_data_hydration.js";
-import type { MarketBar, MarketClock, MarketSnapshot, MarketTrade } from "../src/market_data.js";
+import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "../src/market_data.js";
 
 describe("MarketDataHydrator", () => {
-  it("hydrates snapshots for selected symbols", async () => {
+  it("hydrates marketSummaries for selected symbols", async () => {
     const cache = new MemoryMarketDataCache();
     const hydrator = new MarketDataHydrator(cache);
-    const snapshots: Record<string, MarketSnapshot> = {
+    const marketSummaries: Record<string, MarketSummary> = {
       AAPL: { symbol: "AAPL", price: 195.12 },
       MSFT: { symbol: "MSFT", price: 420.5 },
     };
 
-    await cache.setSnapshots(snapshots);
+    await cache.setMarketSummaries(marketSummaries);
 
     await expect(
       hydrator.hydrate({
         symbols: ["aapl"],
-        includeSnapshots: true,
+        includeMarketSummaries: true,
       }),
     ).resolves.toEqual({
-      snapshots: {
-        AAPL: snapshots.AAPL,
+      marketSummaries: {
+        AAPL: marketSummaries.AAPL,
       },
     });
   });

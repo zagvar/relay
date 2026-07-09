@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MemoryMarketDataCache } from "../src/market_data_cache.js";
-import type { MarketBar, MarketClock, MarketSnapshot, MarketTrade } from "../src/market_data.js";
+import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "../src/market_data.js";
 
 describe("MemoryMarketDataCache", () => {
   it("stores and returns latest trades", async () => {
@@ -18,9 +18,9 @@ describe("MemoryMarketDataCache", () => {
     expect(await cache.getLatestTrade("AAPL")).toEqual(trade);
   });
 
-  it("stores and returns snapshots", async () => {
+  it("stores and returns marketSummaries", async () => {
     const cache = new MemoryMarketDataCache();
-    const snapshots: Record<string, MarketSnapshot> = {
+    const marketSummaries: Record<string, MarketSummary> = {
       AAPL: {
         symbol: "AAPL",
         price: 195.12,
@@ -28,9 +28,9 @@ describe("MemoryMarketDataCache", () => {
       },
     };
 
-    await cache.setSnapshots(snapshots);
+    await cache.setMarketSummaries(marketSummaries);
 
-    expect(await cache.getSnapshots()).toEqual(snapshots);
+    expect(await cache.getMarketSummaries()).toEqual(marketSummaries);
   });
 
   it("appends and returns bars by symbol and timeframe", async () => {

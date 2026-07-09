@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   MarketBar,
   MarketInstrument,
-  MarketSnapshot,
+  MarketSummary,
   MarketTrade,
 } from "../src/market_data.js";
 
@@ -68,7 +68,7 @@ describe("market data types", () => {
       timestamp: "2026-01-01T00:00:00.000Z",
     };
 
-    const snapshot: MarketSnapshot = {
+    const snapshot: MarketSummary = {
       symbol: "BTC/USD",
       assetClass: "crypto",
       baseAsset: "BTC",

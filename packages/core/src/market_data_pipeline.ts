@@ -5,7 +5,7 @@ import type {
   MarketBar,
   MarketClock,
   MarketEvent,
-  MarketSnapshot,
+  MarketSummary,
   MarketTrade,
 } from "./market_data.js";
 
@@ -37,10 +37,14 @@ export class MarketDataPipeline {
     }
   }
 
-  /** Stores and publishes latest snapshots. */
-  async processSnapshots(snapshots: Readonly<Record<string, MarketSnapshot>>): Promise<void> {
-    await this.#cache.setSnapshots(snapshots);
-    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.snapshot, snapshots));
+  /** Stores and publishes latest marketSummaries. */
+  async processMarketSummaries(
+    marketSummaries: Readonly<Record<string, MarketSummary>>,
+  ): Promise<void> {
+    await this.#cache.setMarketSummaries(marketSummaries);
+    await this.#eventBus.publish(
+      createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, marketSummaries),
+    );
   }
 
   /** Stores and publishes the latest market clock. */

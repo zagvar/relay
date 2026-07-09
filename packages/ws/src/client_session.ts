@@ -41,7 +41,7 @@ export class RelayClientSession {
       await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.bar, (message) =>
         this.#forwardMessage(message),
       ),
-      await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.snapshot, (message) =>
+      await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.marketSummary, (message) =>
         this.#forwardMessage(message),
       ),
       await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.marketClock, (message) =>

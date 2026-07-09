@@ -51,7 +51,7 @@ describe("parseRelayClientMessage", () => {
           type: "hydrate",
           request: {
             symbols: ["AAPL"],
-            includeSnapshots: true,
+            includeMarketSummaries: true,
           },
         }),
       ),
@@ -59,7 +59,7 @@ describe("parseRelayClientMessage", () => {
       type: "hydrate",
       request: {
         symbols: ["AAPL"],
-        includeSnapshots: true,
+        includeMarketSummaries: true,
       },
     });
   });

@@ -2,7 +2,7 @@
 export const MARKET_EVENT_CHANNEL = {
   trade: "trade",
   bar: "bar",
-  snapshot: "snapshot",
+  marketSummary: "market_summary",
   marketClock: "market_clock",
 } as const;
 

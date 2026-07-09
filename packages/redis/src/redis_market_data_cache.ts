@@ -3,7 +3,7 @@ import type {
   MarketBar,
   MarketClock,
   MarketDataCache,
-  MarketSnapshot,
+  MarketSummary,
   MarketTrade,
 } from "@zagvar/relay-core";
 import { RelayRedisKeys, type RelayRedisKeyOptions } from "./redis_keys.js";
@@ -24,7 +24,7 @@ export interface BarRetentionOptions {
 /** Options for RedisMarketDataCache. */
 export interface RedisMarketDataCacheOptions extends RelayRedisKeyOptions {
   readonly client: RedisCacheClient;
-  readonly snapshotTtlSeconds?: number;
+  readonly marketSummaryTtlSeconds?: number;
   readonly marketClockTtlSeconds?: number;
   readonly barRetention?: BarRetentionOptions;
 }
@@ -33,7 +33,7 @@ export interface RedisMarketDataCacheOptions extends RelayRedisKeyOptions {
 export class RedisMarketDataCache implements MarketDataCache {
   readonly #client: RedisCacheClient;
   readonly #keys: RelayRedisKeys;
-  readonly #snapshotTtlSeconds: number | undefined;
+  readonly #marketSummaryTtlSeconds: number | undefined;
   readonly #marketClockTtlSeconds: number | undefined;
   readonly #barRetention: BarRetentionOptions | undefined;
 
@@ -43,7 +43,7 @@ export class RedisMarketDataCache implements MarketDataCache {
       options.prefix === undefined
         ? new RelayRedisKeys()
         : new RelayRedisKeys({ prefix: options.prefix });
-    this.#snapshotTtlSeconds = options.snapshotTtlSeconds;
+    this.#marketSummaryTtlSeconds = options.marketSummaryTtlSeconds;
     this.#marketClockTtlSeconds = options.marketClockTtlSeconds;
     this.#barRetention = options.barRetention;
   }
@@ -62,18 +62,27 @@ export class RedisMarketDataCache implements MarketDataCache {
     return value === null ? undefined : (JSON.parse(value) as MarketTrade);
   }
 
-  async setSnapshots(snapshots: Readonly<Record<string, MarketSnapshot>>): Promise<void> {
-    const normalizedSnapshots = Object.fromEntries(
-      Object.entries(snapshots).map(([symbol, snapshot]) => [normalizeSymbol(symbol), snapshot]),
+  async setMarketSummaries(
+    marketSummaries: Readonly<Record<string, MarketSummary>>,
+  ): Promise<void> {
+    const normalizedMarketSummaries = Object.fromEntries(
+      Object.entries(marketSummaries).map(([symbol, marketSummary]) => [
+        normalizeSymbol(symbol),
+        marketSummary,
+      ]),
     );
 
-    await this.#setJson(this.#keys.snapshots(), normalizedSnapshots, this.#snapshotTtlSeconds);
+    await this.#setJson(
+      this.#keys.marketSummaries(),
+      normalizedMarketSummaries,
+      this.#marketSummaryTtlSeconds,
+    );
   }
 
-  async getSnapshots(): Promise<Readonly<Record<string, MarketSnapshot>>> {
-    const value = await this.#client.get(this.#keys.snapshots());
+  async getMarketSummaries(): Promise<Readonly<Record<string, MarketSummary>>> {
+    const value = await this.#client.get(this.#keys.marketSummaries());
 
-    return value === null ? {} : (JSON.parse(value) as Readonly<Record<string, MarketSnapshot>>);
+    return value === null ? {} : (JSON.parse(value) as Readonly<Record<string, MarketSummary>>);
   }
 
   async appendBar(bar: MarketBar): Promise<void> {

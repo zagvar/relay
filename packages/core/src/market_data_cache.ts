@@ -1,4 +1,4 @@
-import type { MarketBar, MarketClock, MarketSnapshot, MarketTrade } from "./market_data.js";
+import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "./market_data.js";
 import { normalizeSymbol } from "./symbols.js";
 
 /** Provider-neutral cache contract for latest market data. */
@@ -9,11 +9,11 @@ export interface MarketDataCache {
   /** Returns the latest trade for a symbol when available. */
   getLatestTrade(symbol: string): Promise<MarketTrade | undefined>;
 
-  /** Stores latest snapshots keyed by symbol. */
-  setSnapshots(snapshots: Readonly<Record<string, MarketSnapshot>>): Promise<void>;
+  /** Stores latest market summaries keyed by symbol. */
+  setMarketSummaries(marketSummaries: Readonly<Record<string, MarketSummary>>): Promise<void>;
 
-  /** Returns all currently cached snapshots keyed by symbol. */
-  getSnapshots(): Promise<Readonly<Record<string, MarketSnapshot>>>;
+  /** Returns all currently cached marketSummaries keyed by symbol. */
+  getMarketSummaries(): Promise<Readonly<Record<string, MarketSummary>>>;
 
   /** Appends a bar to the cached time series for its symbol and timeframe. */
   appendBar(bar: MarketBar): Promise<void>;
@@ -31,7 +31,7 @@ export interface MarketDataCache {
 /** In-memory cache for tests, examples, and single-process demos. */
 export class MemoryMarketDataCache implements MarketDataCache {
   readonly #latestTradesBySymbol = new Map<string, MarketTrade>();
-  #snapshots: Readonly<Record<string, MarketSnapshot>> = {};
+  #marketSummaries: Readonly<Record<string, MarketSummary>> = {};
   readonly #barsByKey = new Map<string, MarketBar[]>();
   #marketClock: MarketClock | undefined;
 
@@ -44,15 +44,18 @@ export class MemoryMarketDataCache implements MarketDataCache {
     return Promise.resolve(this.#latestTradesBySymbol.get(normalizeSymbol(symbol)));
   }
 
-  setSnapshots(snapshots: Readonly<Record<string, MarketSnapshot>>): Promise<void> {
-    this.#snapshots = Object.fromEntries(
-      Object.entries(snapshots).map(([symbol, snapshot]) => [normalizeSymbol(symbol), snapshot]),
+  setMarketSummaries(marketSummaries: Readonly<Record<string, MarketSummary>>): Promise<void> {
+    this.#marketSummaries = Object.fromEntries(
+      Object.entries(marketSummaries).map(([symbol, snapshot]) => [
+        normalizeSymbol(symbol),
+        snapshot,
+      ]),
     );
     return Promise.resolve();
   }
 
-  getSnapshots(): Promise<Readonly<Record<string, MarketSnapshot>>> {
-    return Promise.resolve(this.#snapshots);
+  getMarketSummaries(): Promise<Readonly<Record<string, MarketSummary>>> {
+    return Promise.resolve(this.#marketSummaries);
   }
 
   appendBar(bar: MarketBar): Promise<void> {

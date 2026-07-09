@@ -129,7 +129,7 @@ describe("RelayClientSession", () => {
     const hydrator = new MarketDataHydrator(cache);
     const session = new RelayClientSession({ socket, eventBus, hydrator });
 
-    await cache.setSnapshots({
+    await cache.setMarketSummaries({
       AAPL: {
         symbol: "AAPL",
         price: 195.12,
@@ -141,7 +141,7 @@ describe("RelayClientSession", () => {
         type: "hydrate",
         request: {
           symbols: ["AAPL"],
-          includeSnapshots: true,
+          includeMarketSummaries: true,
         },
       }),
     );
@@ -150,7 +150,7 @@ describe("RelayClientSession", () => {
       {
         type: "hydration",
         data: {
-          snapshots: {
+          marketSummaries: {
             AAPL: {
               symbol: "AAPL",
               price: 195.12,

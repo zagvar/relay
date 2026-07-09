@@ -3,7 +3,7 @@ import type {
   MarketBar,
   MarketClock,
   MarketEvent,
-  MarketSnapshot,
+  MarketSummary,
 } from "./market_data.js";
 import type { ProviderCapabilities } from "./provider_capability.js";
 
@@ -34,8 +34,8 @@ export interface MarketDataProvider {
   readonly name: string;
   readonly capabilities: ProviderCapabilities;
 
-  /** Returns latest snapshots keyed by normalized symbol. */
-  getSnapshots(symbols: readonly string[]): Promise<Readonly<Record<string, MarketSnapshot>>>;
+  /** Returns latest marketSummaries keyed by normalized symbol. */
+  getMarketSummaries(symbols: readonly string[]): Promise<Readonly<Record<string, MarketSummary>>>;
 
   /** Returns historical bars for a symbol and timeframe. */
   getBars(request: BarsRequest): Promise<readonly MarketBar[]>;

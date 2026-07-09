@@ -3,7 +3,7 @@ import { MARKET_EVENT_CHANNEL } from "../src/event_channel.js";
 import { MemoryRelayEventBus } from "../src/event_bus.js";
 import { MemoryMarketDataCache } from "../src/market_data_cache.js";
 import { MarketDataPipeline } from "../src/market_data_pipeline.js";
-import type { MarketBar, MarketClock, MarketSnapshot, MarketTrade } from "../src/market_data.js";
+import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "../src/market_data.js";
 
 describe("MarketDataPipeline", () => {
   it("stores and publishes trade events", async () => {
@@ -68,17 +68,17 @@ describe("MarketDataPipeline", () => {
     ]);
   });
 
-  it("stores and publishes snapshots", async () => {
+  it("stores and publishes marketSummaries", async () => {
     const cache = new MemoryMarketDataCache();
     const eventBus = new MemoryRelayEventBus();
     const pipeline = new MarketDataPipeline({ cache, eventBus });
     const publishedMessages: unknown[] = [];
 
-    await eventBus.subscribe(MARKET_EVENT_CHANNEL.snapshot, (message) => {
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.marketSummary, (message) => {
       publishedMessages.push(message);
     });
 
-    const snapshots: Record<string, MarketSnapshot> = {
+    const marketSummaries: Record<string, MarketSummary> = {
       AAPL: {
         symbol: "AAPL",
         price: 195.12,
@@ -86,13 +86,13 @@ describe("MarketDataPipeline", () => {
       },
     };
 
-    await pipeline.processSnapshots(snapshots);
+    await pipeline.processMarketSummaries(marketSummaries);
 
-    expect(await cache.getSnapshots()).toEqual(snapshots);
+    expect(await cache.getMarketSummaries()).toEqual(marketSummaries);
     expect(publishedMessages).toEqual([
       {
-        channel: "snapshot",
-        data: snapshots,
+        channel: "market_summary",
+        data: marketSummaries,
       },
     ]);
   });

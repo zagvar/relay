@@ -17,8 +17,8 @@ export class RelayRedisKeys {
     return `${this.#prefix}:market:latest_trades`;
   }
 
-  snapshots(): string {
-    return `${this.#prefix}:market:snapshots`;
+  marketSummaries(): string {
+    return `${this.#prefix}:market:summaries`;
   }
 
   marketClock(): string {

@@ -11,7 +11,7 @@ This package will provide Redis implementations of Relay cache and event bus con
 Redis is a good fit for:
 
 - latest trades
-- latest snapshots
+- latest market summaries
 - current market clock
 - recent bar series
 - pub/sub fan-out

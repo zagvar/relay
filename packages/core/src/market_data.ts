@@ -47,24 +47,33 @@ export interface MarketBar {
   readonly volumeWeightedAveragePrice?: number;
 }
 
-/** A normalized market snapshot suitable for initial client hydration. */
-export interface MarketSnapshot {
+/**
+ * Consolidated current market state for an instrument.
+ *
+ * Suitable for watchlists, market tables, and portfolio displays.
+ */
+export interface MarketSummary {
   readonly symbol: string;
   readonly price: number;
+  readonly timestamp?: string;
   readonly assetClass?: AssetClass;
   readonly exchange?: string;
   readonly currency?: string;
   readonly baseAsset?: string;
   readonly quoteAsset?: string;
   readonly size?: number;
-  readonly timestamp?: string;
   readonly open?: number;
   readonly high?: number;
   readonly low?: number;
-  readonly close?: number;
-  readonly volume?: number;
   readonly previousClose?: number;
+  readonly volume?: number;
   readonly previousVolume?: number;
+  readonly change?: number;
+  readonly changePercent?: number;
+  readonly bidPrice?: number;
+  readonly bidSize?: number;
+  readonly askPrice?: number;
+  readonly askSize?: number;
 }
 
 /** A normalized exchange or venue clock. */

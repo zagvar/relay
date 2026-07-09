@@ -151,7 +151,10 @@ function isMarketDataHydrationRequest(value: unknown): value is MarketDataHydrat
     }
   }
 
-  if (value.includeSnapshots !== undefined && typeof value.includeSnapshots !== "boolean") {
+  if (
+    value.includeMarketSummaries !== undefined &&
+    typeof value.includeMarketSummaries !== "boolean"
+  ) {
     return false;
   }
 
