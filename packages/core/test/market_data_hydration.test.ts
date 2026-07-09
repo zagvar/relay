@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { MemoryMarketDataCache } from "../src/market_data_cache.js";
 import { MarketDataHydrator } from "../src/market_data_hydration.js";
-import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "../src/market_data.js";
+import type {
+  MarketBar,
+  MarketClock,
+  MarketQuote,
+  MarketSummary,
+  MarketTrade,
+} from "../src/market_data.js";
 
 describe("MarketDataHydrator", () => {
   it("hydrates marketSummaries for selected symbols", async () => {
@@ -22,6 +28,33 @@ describe("MarketDataHydrator", () => {
     ).resolves.toEqual({
       marketSummaries: {
         AAPL: marketSummaries.AAPL,
+      },
+    });
+  });
+
+  it("hydrates latest quotes for selected symbols", async () => {
+    const cache = new MemoryMarketDataCache();
+    const hydrator = new MarketDataHydrator(cache);
+    const quote: MarketQuote = {
+      type: "quote",
+      symbol: "AAPL",
+      bidPrice: 195.1,
+      bidSize: 200,
+      askPrice: 195.12,
+      askSize: 100,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.setLatestQuote(quote);
+
+    await expect(
+      hydrator.hydrate({
+        symbols: ["aapl"],
+        includeLatestQuotes: true,
+      }),
+    ).resolves.toEqual({
+      latestQuotes: {
+        AAPL: quote,
       },
     });
   });

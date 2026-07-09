@@ -5,6 +5,7 @@ export type {
   MarketClock,
   MarketEvent,
   MarketInstrument,
+  MarketQuote,
   MarketSummary,
   MarketTrade,
 } from "./market_data.js";

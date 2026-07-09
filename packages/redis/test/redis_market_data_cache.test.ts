@@ -1,9 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { RedisMarketDataCache } from "../src/redis_market_data_cache.js";
 import { FakeRedisClient } from "./fake_redis_client.js";
-import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "@zagvar/relay-core";
+import type {
+  MarketBar,
+  MarketClock,
+  MarketQuote,
+  MarketSummary,
+  MarketTrade,
+} from "@zagvar/relay-core";
 
 describe("RedisMarketDataCache", () => {
+  it("stores and returns latest quotes", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+    const quote: MarketQuote = {
+      type: "quote",
+      symbol: "AAPL",
+      bidPrice: 195.1,
+      bidSize: 200,
+      askPrice: 195.12,
+      askSize: 100,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.setLatestQuote(quote);
+
+    await expect(cache.getLatestQuote("aapl")).resolves.toEqual(quote);
+  });
+
   it("stores and returns latest trades", async () => {
     const client = new FakeRedisClient();
     const cache = new RedisMarketDataCache({ client });

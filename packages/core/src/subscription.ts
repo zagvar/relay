@@ -10,12 +10,18 @@ export interface BarSubscription {
 /** Tracks one client's market data subscriptions. */
 export class MarketDataSubscriptionState {
   readonly #channels = new Set<MarketEventChannel>();
+  readonly #quoteSymbols = new Set<string>();
   readonly #tradeSymbols = new Set<string>();
   readonly #barKeys = new Set<string>();
 
   /** Returns subscribed channels in insertion order. */
   get channels(): readonly MarketEventChannel[] {
     return [...this.#channels];
+  }
+
+  /** Returns subscribed quote symbols in insertion order. */
+  get quoteSymbols(): readonly string[] {
+    return [...this.#quoteSymbols];
   }
 
   /** Returns subscribed trade symbols in insertion order. */
@@ -41,6 +47,25 @@ export class MarketDataSubscriptionState {
   /** Returns true when this client is subscribed to a channel. */
   hasChannel(channel: MarketEventChannel): boolean {
     return this.#channels.has(channel);
+  }
+
+  /** Adds quote subscriptions for the provided symbols. */
+  subscribeQuotes(symbols: readonly string[]): void {
+    for (const symbol of symbols) {
+      this.#quoteSymbols.add(normalizeSymbol(symbol));
+    }
+  }
+
+  /** Removes quote subscriptions for the provided symbols. */
+  unsubscribeQuotes(symbols: readonly string[]): void {
+    for (const symbol of symbols) {
+      this.#quoteSymbols.delete(normalizeSymbol(symbol));
+    }
+  }
+
+  /** Returns true when subscribed to quotes for a symbol. */
+  hasQuoteSymbol(symbol: string): boolean {
+    return this.#quoteSymbols.has(normalizeSymbol(symbol));
   }
 
   /** Adds trade subscriptions for the provided symbols. */
@@ -80,6 +105,7 @@ export class MarketDataSubscriptionState {
   /** Removes all subscriptions. */
   clear(): void {
     this.#channels.clear();
+    this.#quoteSymbols.clear();
     this.#tradeSymbols.clear();
     this.#barKeys.clear();
   }

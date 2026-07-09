@@ -1,8 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { MemoryMarketDataCache } from "../src/market_data_cache.js";
-import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "../src/market_data.js";
+import type {
+  MarketBar,
+  MarketClock,
+  MarketQuote,
+  MarketSummary,
+  MarketTrade,
+} from "../src/market_data.js";
 
 describe("MemoryMarketDataCache", () => {
+  it("stores and returns latest quotes", async () => {
+    const cache = new MemoryMarketDataCache();
+    const quote: MarketQuote = {
+      type: "quote",
+      symbol: "AAPL",
+      bidPrice: 195.1,
+      bidSize: 200,
+      askPrice: 195.12,
+      askSize: 100,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.setLatestQuote(quote);
+
+    expect(await cache.getLatestQuote("aapl")).toEqual(quote);
+  });
+
   it("stores and returns latest trades", async () => {
     const cache = new MemoryMarketDataCache();
     const trade: MarketTrade = {

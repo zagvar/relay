@@ -13,6 +13,10 @@ export class RelayRedisKeys {
     this.#prefix = options.prefix ?? "relay";
   }
 
+  latestQuotes(): string {
+    return `${this.#prefix}:market:latest_quotes`;
+  }
+
   latestTrades(): string {
     return `${this.#prefix}:market:latest_trades`;
   }

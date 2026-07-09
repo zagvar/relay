@@ -27,6 +27,23 @@ export interface MarketTrade {
   readonly providerTradeId?: string;
 }
 
+/** A normalized best bid and offer update. */
+export interface MarketQuote {
+  readonly type: "quote";
+  readonly symbol: string;
+  readonly bidPrice: number;
+  readonly bidSize: number;
+  readonly askPrice: number;
+  readonly askSize: number;
+  readonly timestamp: string;
+  readonly assetClass?: AssetClass;
+  readonly bidExchange?: string;
+  readonly askExchange?: string;
+  readonly currency?: string;
+  readonly baseAsset?: string;
+  readonly quoteAsset?: string;
+}
+
 /** A normalized OHLCV bar. */
 export interface MarketBar {
   readonly type: "bar";
@@ -94,4 +111,4 @@ export interface BarsRequest {
 }
 
 /** Any normalized market event Relay can move through a transport. */
-export type MarketEvent = MarketTrade | MarketBar;
+export type MarketEvent = MarketTrade | MarketQuote | MarketBar;

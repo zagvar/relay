@@ -3,7 +3,13 @@ import { MARKET_EVENT_CHANNEL } from "../src/event_channel.js";
 import { MemoryRelayEventBus } from "../src/event_bus.js";
 import { MemoryMarketDataCache } from "../src/market_data_cache.js";
 import { MarketDataPipeline } from "../src/market_data_pipeline.js";
-import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "../src/market_data.js";
+import type {
+  MarketBar,
+  MarketClock,
+  MarketQuote,
+  MarketSummary,
+  MarketTrade,
+} from "../src/market_data.js";
 
 describe("MarketDataPipeline", () => {
   it("stores and publishes trade events", async () => {
@@ -31,6 +37,37 @@ describe("MarketDataPipeline", () => {
       {
         channel: "trade",
         data: trade,
+      },
+    ]);
+  });
+
+  it("stores and publishes quote events", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({ cache, eventBus });
+    const publishedMessages: unknown[] = [];
+
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.quote, (message) => {
+      publishedMessages.push(message);
+    });
+
+    const quote: MarketQuote = {
+      type: "quote",
+      symbol: "AAPL",
+      bidPrice: 195.1,
+      bidSize: 200,
+      askPrice: 195.12,
+      askSize: 100,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await pipeline.processEvent(quote);
+
+    expect(await cache.getLatestQuote("AAPL")).toEqual(quote);
+    expect(publishedMessages).toEqual([
+      {
+        channel: "quote",
+        data: quote,
       },
     ]);
   });
@@ -68,7 +105,7 @@ describe("MarketDataPipeline", () => {
     ]);
   });
 
-  it("stores and publishes marketSummaries", async () => {
+  it("stores and publishes market summaries", async () => {
     const cache = new MemoryMarketDataCache();
     const eventBus = new MemoryRelayEventBus();
     const pipeline = new MarketDataPipeline({ cache, eventBus });

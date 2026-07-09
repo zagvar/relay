@@ -6,6 +6,7 @@ import {
   MemoryRelayEventBus,
   createRelayMessage,
   type MarketBar,
+  type MarketQuote,
   type MarketTrade,
 } from "@zagvar/relay-core";
 import { RelayClientSession } from "../src/client_session.js";
@@ -24,6 +25,51 @@ class FakeSocket implements RelaySocket {
 }
 
 describe("RelayClientSession", () => {
+  it("forwards subscribed quotes until unsubscribed", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({ socket, eventBus });
+    const quote: MarketQuote = {
+      type: "quote",
+      symbol: "AAPL",
+      bidPrice: 195.1,
+      bidSize: 200,
+      askPrice: 195.12,
+      askSize: 100,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await session.start();
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_quotes",
+        symbols: ["AAPL"],
+      }),
+    );
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.quote, quote));
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "unsubscribe_quotes",
+        symbols: ["AAPL"],
+      }),
+    );
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.quote, quote));
+
+    expect(socket.sentPayloads).toEqual([
+      {
+        type: "relay_message",
+        data: {
+          channel: "quote",
+          data: quote,
+        },
+      },
+    ]);
+  });
+
   it("forwards subscribed trade messages", async () => {
     const socket = new FakeSocket();
     const eventBus = new MemoryRelayEventBus();

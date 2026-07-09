@@ -9,6 +9,8 @@ import { isRecord, isStringArray } from "./type_guards.js";
 export type RelayClientMessage =
   | SubscribeChannelsMessage
   | UnsubscribeChannelsMessage
+  | SubscribeQuotesMessage
+  | UnsubscribeQuotesMessage
   | SubscribeTradesMessage
   | UnsubscribeTradesMessage
   | SubscribeBarsMessage
@@ -25,6 +27,18 @@ export interface SubscribeChannelsMessage {
 export interface UnsubscribeChannelsMessage {
   readonly type: "unsubscribe_channels";
   readonly channels: readonly MarketEventChannel[];
+}
+
+/** Subscribes the client to live quotes for symbols. */
+export interface SubscribeQuotesMessage {
+  readonly type: "subscribe_quotes";
+  readonly symbols: readonly string[];
+}
+
+/** Unsubscribes the client from live quotes for symbols. */
+export interface UnsubscribeQuotesMessage {
+  readonly type: "unsubscribe_quotes";
+  readonly symbols: readonly string[];
 }
 
 /** Subscribes the client to live trades for symbols. */
@@ -69,6 +83,8 @@ export function parseRelayClientMessage(rawMessage: string): RelayClientMessage 
     case "subscribe_channels":
     case "unsubscribe_channels":
       return parseChannelsMessage(parsedMessage);
+    case "subscribe_quotes":
+    case "unsubscribe_quotes":
     case "subscribe_trades":
     case "unsubscribe_trades":
       return parseSymbolsMessage(parsedMessage);
@@ -97,13 +113,18 @@ function parseChannelsMessage(
 
 function parseSymbolsMessage(
   message: Record<string, unknown>,
-): SubscribeTradesMessage | UnsubscribeTradesMessage {
+):
+  | SubscribeTradesMessage
+  | UnsubscribeTradesMessage
+  | SubscribeQuotesMessage
+  | UnsubscribeQuotesMessage {
   if (!isStringArray(message.symbols)) {
     throw new Error("Client message symbols must be an array of strings.");
   }
 
   return {
-    type: message.type as "subscribe_trades" | "unsubscribe_trades",
+    type: message.type as
+      "subscribe_trades" | "unsubscribe_trades" | "subscribe_quotes" | "unsubscribe_quotes",
     symbols: message.symbols,
   };
 }
@@ -155,6 +176,10 @@ function isMarketDataHydrationRequest(value: unknown): value is MarketDataHydrat
     value.includeMarketSummaries !== undefined &&
     typeof value.includeMarketSummaries !== "boolean"
   ) {
+    return false;
+  }
+
+  if (value.includeLatestQuotes !== undefined && typeof value.includeLatestQuotes !== "boolean") {
     return false;
   }
 

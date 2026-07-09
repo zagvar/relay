@@ -16,6 +16,20 @@ describe("parseRelayClientMessage", () => {
     });
   });
 
+  it("parses quote subscriptions", () => {
+    expect(
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "subscribe_quotes",
+          symbols: ["AAPL", "MSFT"],
+        }),
+      ),
+    ).toEqual({
+      type: "subscribe_quotes",
+      symbols: ["AAPL", "MSFT"],
+    });
+  });
+
   it("parses trade subscriptions", () => {
     expect(
       parseRelayClientMessage(
@@ -52,6 +66,7 @@ describe("parseRelayClientMessage", () => {
           request: {
             symbols: ["AAPL"],
             includeMarketSummaries: true,
+            includeLatestQuotes: true,
           },
         }),
       ),
@@ -60,6 +75,7 @@ describe("parseRelayClientMessage", () => {
       request: {
         symbols: ["AAPL"],
         includeMarketSummaries: true,
+        includeLatestQuotes: true,
       },
     });
   });

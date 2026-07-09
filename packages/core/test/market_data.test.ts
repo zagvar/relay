@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   MarketBar,
   MarketInstrument,
+  MarketQuote,
   MarketSummary,
   MarketTrade,
 } from "../src/market_data.js";
@@ -42,6 +43,16 @@ describe("market data types", () => {
   });
 
   it("allows asset metadata on normalized events", () => {
+    const quote: MarketQuote = {
+      type: "quote",
+      symbol: "AAPL",
+      bidPrice: 195.1,
+      bidSize: 200,
+      askPrice: 195.12,
+      askSize: 100,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
     const trade: MarketTrade = {
       type: "trade",
       symbol: "BTC/USD",
@@ -76,6 +87,7 @@ describe("market data types", () => {
       price: 109_500,
     };
 
+    expect(quote.askPrice).toBe(195.12);
     expect(trade.assetClass).toBe("crypto");
     expect(bar.baseAsset).toBe("BTC");
     expect(snapshot.quoteAsset).toBe("USD");

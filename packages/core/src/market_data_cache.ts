@@ -1,8 +1,20 @@
-import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "./market_data.js";
+import type {
+  MarketBar,
+  MarketClock,
+  MarketQuote,
+  MarketSummary,
+  MarketTrade,
+} from "./market_data.js";
 import { normalizeSymbol } from "./symbols.js";
 
 /** Provider-neutral cache contract for latest market data. */
 export interface MarketDataCache {
+  /** Stores the latest quote for a symbol. */
+  setLatestQuote(quote: MarketQuote): Promise<void>;
+
+  /** Returns the latest quote for a symbol when available. */
+  getLatestQuote(symbol: string): Promise<MarketQuote | undefined>;
+
   /** Stores the latest trade for a symbol. */
   setLatestTrade(trade: MarketTrade): Promise<void>;
 
@@ -30,10 +42,21 @@ export interface MarketDataCache {
 
 /** In-memory cache for tests, examples, and single-process demos. */
 export class MemoryMarketDataCache implements MarketDataCache {
+  readonly #latestQuotesBySymbol = new Map<string, MarketQuote>();
   readonly #latestTradesBySymbol = new Map<string, MarketTrade>();
   #marketSummaries: Readonly<Record<string, MarketSummary>> = {};
   readonly #barsByKey = new Map<string, MarketBar[]>();
   #marketClock: MarketClock | undefined;
+
+  setLatestQuote(quote: MarketQuote): Promise<void> {
+    this.#latestQuotesBySymbol.set(normalizeSymbol(quote.symbol), quote);
+
+    return Promise.resolve();
+  }
+
+  getLatestQuote(symbol: string): Promise<MarketQuote | undefined> {
+    return Promise.resolve(this.#latestQuotesBySymbol.get(normalizeSymbol(symbol)));
+  }
 
   setLatestTrade(trade: MarketTrade): Promise<void> {
     this.#latestTradesBySymbol.set(normalizeSymbol(trade.symbol), trade);

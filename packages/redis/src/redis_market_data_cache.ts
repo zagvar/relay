@@ -3,6 +3,7 @@ import type {
   MarketBar,
   MarketClock,
   MarketDataCache,
+  MarketQuote,
   MarketSummary,
   MarketTrade,
 } from "@zagvar/relay-core";
@@ -46,6 +47,20 @@ export class RedisMarketDataCache implements MarketDataCache {
     this.#marketSummaryTtlSeconds = options.marketSummaryTtlSeconds;
     this.#marketClockTtlSeconds = options.marketClockTtlSeconds;
     this.#barRetention = options.barRetention;
+  }
+
+  async setLatestQuote(quote: MarketQuote): Promise<void> {
+    await this.#client.hSet(
+      this.#keys.latestQuotes(),
+      normalizeSymbol(quote.symbol),
+      JSON.stringify(quote),
+    );
+  }
+
+  async getLatestQuote(symbol: string): Promise<MarketQuote | undefined> {
+    const value = await this.#client.hGet(this.#keys.latestQuotes(), normalizeSymbol(symbol));
+
+    return value === null ? undefined : (JSON.parse(value) as MarketQuote);
   }
 
   async setLatestTrade(trade: MarketTrade): Promise<void> {

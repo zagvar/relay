@@ -5,6 +5,7 @@ import type {
   MarketBar,
   MarketClock,
   MarketEvent,
+  MarketQuote,
   MarketSummary,
   MarketTrade,
 } from "./market_data.js";
@@ -28,6 +29,9 @@ export class MarketDataPipeline {
   /** Stores and publishes one normalized market event. */
   async processEvent(event: MarketEvent): Promise<void> {
     switch (event.type) {
+      case "quote":
+        await this.#processQuote(event);
+        return;
       case "trade":
         await this.#processTrade(event);
         return;
@@ -51,6 +55,11 @@ export class MarketDataPipeline {
   async processMarketClock(clock: MarketClock): Promise<void> {
     await this.#cache.setMarketClock(clock);
     await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketClock, clock));
+  }
+
+  async #processQuote(quote: MarketQuote): Promise<void> {
+    await this.#cache.setLatestQuote(quote);
+    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.quote, quote));
   }
 
   async #processTrade(trade: MarketTrade): Promise<void> {

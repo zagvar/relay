@@ -1,12 +1,19 @@
 import { normalizeSymbol } from "./symbols.js";
 import type { MarketDataCache } from "./market_data_cache.js";
-import type { MarketBar, MarketClock, MarketSummary, MarketTrade } from "./market_data.js";
+import type {
+  MarketBar,
+  MarketClock,
+  MarketQuote,
+  MarketSummary,
+  MarketTrade,
+} from "./market_data.js";
 
 /** Request for cached market data suitable for initial client hydration. */
 export interface MarketDataHydrationRequest {
   readonly symbols?: readonly string[];
   readonly bars?: readonly BarsHydrationRequest[];
   readonly includeMarketSummaries?: boolean;
+  readonly includeLatestQuotes?: boolean;
   readonly includeLatestTrades?: boolean;
   readonly includeMarketClock?: boolean;
 }
@@ -20,6 +27,7 @@ export interface BarsHydrationRequest {
 /** Cached market data returned for initial client hydration. */
 export interface MarketDataHydration {
   readonly marketSummaries?: Readonly<Record<string, MarketSummary>>;
+  readonly latestQuotes?: Readonly<Record<string, MarketQuote>>;
   readonly latestTrades?: Readonly<Record<string, MarketTrade>>;
   readonly bars?: Readonly<Record<string, readonly MarketBar[]>>;
   readonly marketClock?: MarketClock;
@@ -37,6 +45,7 @@ export class MarketDataHydrator {
   async hydrate(request: MarketDataHydrationRequest): Promise<MarketDataHydration> {
     const hydration: {
       marketSummaries?: Readonly<Record<string, MarketSummary>>;
+      latestQuotes?: Readonly<Record<string, MarketQuote>>;
       latestTrades?: Readonly<Record<string, MarketTrade>>;
       bars?: Readonly<Record<string, readonly MarketBar[]>>;
       marketClock?: MarketClock;
@@ -46,6 +55,10 @@ export class MarketDataHydrator {
 
     if (request.includeMarketSummaries === true) {
       hydration.marketSummaries = await this.#hydrateMarketSummaries(symbols);
+    }
+
+    if (request.includeLatestQuotes === true) {
+      hydration.latestQuotes = await this.#hydrateLatestQuotes(symbols);
     }
 
     if (request.includeLatestTrades === true) {
@@ -82,6 +95,18 @@ export class MarketDataHydrator {
 
         return marketSummary === undefined ? [] : [[symbol, marketSummary]];
       }),
+    );
+  }
+
+  async #hydrateLatestQuotes(
+    symbols: readonly string[],
+  ): Promise<Readonly<Record<string, MarketQuote>>> {
+    const quotes = await Promise.all(
+      symbols.map(async (symbol) => [symbol, await this.#cache.getLatestQuote(symbol)] as const),
+    );
+
+    return Object.fromEntries(
+      quotes.flatMap(([symbol, quote]) => (quote === undefined ? [] : [[symbol, quote]])),
     );
   }
 

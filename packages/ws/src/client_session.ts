@@ -35,6 +35,9 @@ export class RelayClientSession {
   /** Starts forwarding Relay bus messages to this client. */
   async start(): Promise<void> {
     this.#unsubscribes.push(
+      await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.quote, (message) =>
+        this.#forwardMessage(message),
+      ),
       await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) =>
         this.#forwardMessage(message),
       ),
@@ -73,6 +76,12 @@ export class RelayClientSession {
         for (const channel of message.channels) {
           this.#subscriptions.unsubscribeChannel(channel);
         }
+        return;
+      case "subscribe_quotes":
+        this.#subscriptions.subscribeQuotes(message.symbols);
+        return;
+      case "unsubscribe_quotes":
+        this.#subscriptions.unsubscribeQuotes(message.symbols);
         return;
       case "subscribe_trades":
         this.#subscriptions.subscribeTrades(message.symbols);
@@ -115,6 +124,10 @@ export class RelayClientSession {
   }
 
   #shouldForwardMessage(message: RelayMessage<unknown>): boolean {
+    if (message.channel === MARKET_EVENT_CHANNEL.quote) {
+      return this.#shouldForwardQuote(message.data);
+    }
+
     if (message.channel === MARKET_EVENT_CHANNEL.trade) {
       return this.#shouldForwardTrade(message.data);
     }
@@ -126,6 +139,10 @@ export class RelayClientSession {
     return this.#subscriptions.hasChannel(message.channel);
   }
 
+  #shouldForwardQuote(data: unknown): boolean {
+    return isQuoteEventData(data) && this.#subscriptions.hasQuoteSymbol(data.symbol);
+  }
+
   #shouldForwardTrade(data: unknown): boolean {
     return isTradeEventData(data) && this.#subscriptions.hasTradeSymbol(data.symbol);
   }
@@ -135,6 +152,11 @@ export class RelayClientSession {
   }
 }
 
+interface QuoteEventData {
+  readonly type: "quote";
+  readonly symbol: string;
+}
+
 interface TradeEventData {
   readonly type: "trade";
   readonly symbol: string;
@@ -142,6 +164,10 @@ interface TradeEventData {
 
 interface BarEventData extends BarSubscription {
   readonly type: "bar";
+}
+
+function isQuoteEventData(value: unknown): value is QuoteEventData {
+  return isRecord(value) && value.type === "quote" && typeof value.symbol === "string";
 }
 
 function isTradeEventData(value: unknown): value is TradeEventData {

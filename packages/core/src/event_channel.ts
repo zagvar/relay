@@ -1,6 +1,7 @@
 /** Stable channel names used by Relay transports and storage adapters. */
 export const MARKET_EVENT_CHANNEL = {
   trade: "trade",
+  quote: "quote",
   bar: "bar",
   marketSummary: "market_summary",
   marketClock: "market_clock",
