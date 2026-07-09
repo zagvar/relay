@@ -60,3 +60,10 @@ export type {
 export { MarketDataSubscriptionState, createBarSubscriptionKey } from "./subscription.js";
 
 export type { BarSubscription } from "./subscription.js";
+
+export { MarketSummaryConflator } from "./market_summary_conflator.js";
+
+export type {
+  MarketSummaryBatchHandler,
+  MarketSummaryConflatorOptions,
+} from "./market_summary_conflator.js";
