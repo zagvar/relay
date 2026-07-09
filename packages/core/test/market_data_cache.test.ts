@@ -56,6 +56,18 @@ describe("MemoryMarketDataCache", () => {
     expect(await cache.getMarketSummaries()).toEqual(marketSummaries);
   });
 
+  it("stores and returns one market summary", async () => {
+    const cache = new MemoryMarketDataCache();
+    const marketSummary: MarketSummary = {
+      symbol: "AAPL",
+      price: 195.12,
+    };
+
+    await cache.setMarketSummary(marketSummary);
+
+    await expect(cache.getMarketSummary("aapl")).resolves.toEqual(marketSummary);
+  });
+
   it("appends and returns bars by symbol and timeframe", async () => {
     const cache = new MemoryMarketDataCache();
     const bar: MarketBar = {

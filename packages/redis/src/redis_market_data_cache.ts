@@ -77,27 +77,44 @@ export class RedisMarketDataCache implements MarketDataCache {
     return value === null ? undefined : (JSON.parse(value) as MarketTrade);
   }
 
+  async setMarketSummary(marketSummary: MarketSummary): Promise<void> {
+    await this.#client.hSet(
+      this.#keys.marketSummaries(),
+      normalizeSymbol(marketSummary.symbol),
+      JSON.stringify(marketSummary),
+    );
+
+    await this.#expireMarketSummaries();
+  }
+
+  async getMarketSummary(symbol: string): Promise<MarketSummary | undefined> {
+    const value = await this.#client.hGet(this.#keys.marketSummaries(), normalizeSymbol(symbol));
+
+    return value === null ? undefined : (JSON.parse(value) as MarketSummary);
+  }
+
   async setMarketSummaries(
     marketSummaries: Readonly<Record<string, MarketSummary>>,
   ): Promise<void> {
-    const normalizedMarketSummaries = Object.fromEntries(
-      Object.entries(marketSummaries).map(([symbol, marketSummary]) => [
-        normalizeSymbol(symbol),
-        marketSummary,
-      ]),
+    await Promise.all(
+      Object.entries(marketSummaries).map(async ([symbol, marketSummary]) => {
+        await this.#client.hSet(
+          this.#keys.marketSummaries(),
+          normalizeSymbol(symbol),
+          JSON.stringify(marketSummary),
+        );
+      }),
     );
 
-    await this.#setJson(
-      this.#keys.marketSummaries(),
-      normalizedMarketSummaries,
-      this.#marketSummaryTtlSeconds,
-    );
+    await this.#expireMarketSummaries();
   }
 
   async getMarketSummaries(): Promise<Readonly<Record<string, MarketSummary>>> {
-    const value = await this.#client.get(this.#keys.marketSummaries());
+    const values = await this.#client.hGetAll(this.#keys.marketSummaries());
 
-    return value === null ? {} : (JSON.parse(value) as Readonly<Record<string, MarketSummary>>);
+    return Object.fromEntries(
+      Object.entries(values).map(([symbol, value]) => [symbol, JSON.parse(value) as MarketSummary]),
+    );
   }
 
   async appendBar(bar: MarketBar): Promise<void> {
@@ -141,6 +158,14 @@ export class RedisMarketDataCache implements MarketDataCache {
     }
 
     await this.#client.set(key, serializedValue, { EX: ttlSeconds });
+  }
+
+  async #expireMarketSummaries(): Promise<void> {
+    if (this.#marketSummaryTtlSeconds === undefined) {
+      return;
+    }
+
+    await this.#client.expire(this.#keys.marketSummaries(), this.#marketSummaryTtlSeconds);
   }
 
   #getBarRetentionPolicy(timeframe: string): BarRetentionPolicy {

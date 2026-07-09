@@ -2,6 +2,7 @@
 export interface RedisCacheClient {
   hSet(key: string, field: string, value: string): Promise<number>;
   hGet(key: string, field: string): Promise<string | null>;
+  hGetAll(key: string): Promise<Record<string, string>>;
   set(key: string, value: string, options?: RedisSetOptions): Promise<string | null>;
   get(key: string): Promise<string | null>;
   zAdd(key: string, members: RedisSortedSetMember[]): Promise<number>;

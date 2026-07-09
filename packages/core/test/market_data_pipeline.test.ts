@@ -129,7 +129,34 @@ describe("MarketDataPipeline", () => {
     expect(publishedMessages).toEqual([
       {
         channel: "market_summary",
-        data: marketSummaries,
+        data: marketSummaries.AAPL,
+      },
+    ]);
+  });
+
+  it("stores and publishes one market summary", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({ cache, eventBus });
+    const publishedMessages: unknown[] = [];
+    const marketSummary: MarketSummary = {
+      symbol: "AAPL",
+      price: 195.12,
+      previousClose: 190,
+    };
+
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.marketSummary, (message) => {
+      publishedMessages.push(message);
+    });
+
+    await pipeline.processMarketSummary(marketSummary);
+
+    await expect(cache.getMarketSummary("aapl")).resolves.toEqual(marketSummary);
+
+    expect(publishedMessages).toEqual([
+      {
+        channel: "market_summary",
+        data: marketSummary,
       },
     ]);
   });

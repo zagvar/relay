@@ -44,6 +44,19 @@ describe("RedisMarketDataCache", () => {
     expect(await cache.getLatestTrade("AAPL")).toEqual(trade);
   });
 
+  it("stores and returns one market summary", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+    const marketSummary: MarketSummary = {
+      symbol: "AAPL",
+      price: 195.12,
+    };
+
+    await cache.setMarketSummary(marketSummary);
+
+    await expect(cache.getMarketSummary("aapl")).resolves.toEqual(marketSummary);
+  });
+
   it("stores and returns marketSummaries with normalized keys", async () => {
     const client = new FakeRedisClient();
     const cache = new RedisMarketDataCache({ client });

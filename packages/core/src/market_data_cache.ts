@@ -27,6 +27,12 @@ export interface MarketDataCache {
   /** Returns all currently cached marketSummaries keyed by symbol. */
   getMarketSummaries(): Promise<Readonly<Record<string, MarketSummary>>>;
 
+  /** Stores the latest market summary for one symbol. */
+  setMarketSummary(marketSummary: MarketSummary): Promise<void>;
+
+  /** Returns the latest market summary for a symbol. */
+  getMarketSummary(symbol: string): Promise<MarketSummary | undefined>;
+
   /** Appends a bar to the cached time series for its symbol and timeframe. */
   appendBar(bar: MarketBar): Promise<void>;
 
@@ -44,7 +50,7 @@ export interface MarketDataCache {
 export class MemoryMarketDataCache implements MarketDataCache {
   readonly #latestQuotesBySymbol = new Map<string, MarketQuote>();
   readonly #latestTradesBySymbol = new Map<string, MarketTrade>();
-  #marketSummaries: Readonly<Record<string, MarketSummary>> = {};
+  readonly #marketSummariesBySymbol = new Map<string, MarketSummary>();
   readonly #barsByKey = new Map<string, MarketBar[]>();
   #marketClock: MarketClock | undefined;
 
@@ -68,17 +74,25 @@ export class MemoryMarketDataCache implements MarketDataCache {
   }
 
   setMarketSummaries(marketSummaries: Readonly<Record<string, MarketSummary>>): Promise<void> {
-    this.#marketSummaries = Object.fromEntries(
-      Object.entries(marketSummaries).map(([symbol, snapshot]) => [
-        normalizeSymbol(symbol),
-        snapshot,
-      ]),
-    );
+    for (const [symbol, marketSummary] of Object.entries(marketSummaries)) {
+      this.#marketSummariesBySymbol.set(normalizeSymbol(symbol), marketSummary);
+    }
+
     return Promise.resolve();
   }
 
   getMarketSummaries(): Promise<Readonly<Record<string, MarketSummary>>> {
-    return Promise.resolve(this.#marketSummaries);
+    return Promise.resolve(Object.fromEntries(this.#marketSummariesBySymbol));
+  }
+
+  setMarketSummary(marketSummary: MarketSummary): Promise<void> {
+    this.#marketSummariesBySymbol.set(normalizeSymbol(marketSummary.symbol), marketSummary);
+
+    return Promise.resolve();
+  }
+
+  getMarketSummary(symbol: string): Promise<MarketSummary | undefined> {
+    return Promise.resolve(this.#marketSummariesBySymbol.get(normalizeSymbol(symbol)));
   }
 
   appendBar(bar: MarketBar): Promise<void> {

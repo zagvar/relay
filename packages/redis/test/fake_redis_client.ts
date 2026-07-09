@@ -12,17 +12,30 @@ interface StoredValue {
 /** In-memory Redis-like client for unit tests. */
 export class FakeRedisClient implements RedisCacheClient {
   readonly #hashes = new Map<string, Map<string, string>>();
+  readonly #hashExpiresAtMs = new Map<string, number>();
   readonly #strings = new Map<string, StoredValue>();
   readonly #sortedSets = new Map<string, RedisSortedSetMember[]>();
   readonly #sortedSetExpiresAtMs = new Map<string, number>();
   #nowMs = 0;
+
+  #getHash(key: string): Map<string, string> | undefined {
+    const expiresAtMs = this.#hashExpiresAtMs.get(key);
+
+    if (expiresAtMs !== undefined && this.#nowMs >= expiresAtMs) {
+      this.#hashes.delete(key);
+      this.#hashExpiresAtMs.delete(key);
+      return undefined;
+    }
+
+    return this.#hashes.get(key);
+  }
 
   advanceTime(ms: number): void {
     this.#nowMs += ms;
   }
 
   hSet(key: string, field: string, value: string): Promise<number> {
-    const hash = this.#hashes.get(key) ?? new Map<string, string>();
+    const hash = this.#getHash(key) ?? new Map<string, string>();
     const isNewField = !hash.has(field);
 
     hash.set(field, value);
@@ -32,7 +45,11 @@ export class FakeRedisClient implements RedisCacheClient {
   }
 
   hGet(key: string, field: string): Promise<string | null> {
-    return Promise.resolve(this.#hashes.get(key)?.get(field) ?? null);
+    return Promise.resolve(this.#getHash(key)?.get(field) ?? null);
+  }
+
+  hGetAll(key: string): Promise<Record<string, string>> {
+    return Promise.resolve(Object.fromEntries(this.#getHash(key) ?? []));
   }
 
   set(key: string, value: string, options?: RedisSetOptions): Promise<string | null> {
@@ -101,6 +118,12 @@ export class FakeRedisClient implements RedisCacheClient {
   }
 
   expire(key: string, seconds: number): Promise<number> {
+    if (this.#hashes.has(key)) {
+      this.#hashExpiresAtMs.set(key, this.#nowMs + seconds * 1_000);
+
+      return Promise.resolve(1);
+    }
+
     if (!this.#strings.has(key) && !this.#sortedSets.has(key)) {
       return Promise.resolve(0);
     }

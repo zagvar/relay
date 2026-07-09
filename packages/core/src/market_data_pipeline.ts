@@ -41,13 +41,25 @@ export class MarketDataPipeline {
     }
   }
 
-  /** Stores and publishes latest marketSummaries. */
+  /** Stores and publishes current market summaries. */
   async processMarketSummaries(
     marketSummaries: Readonly<Record<string, MarketSummary>>,
   ): Promise<void> {
     await this.#cache.setMarketSummaries(marketSummaries);
+
+    for (const marketSummary of Object.values(marketSummaries)) {
+      await this.#eventBus.publish(
+        createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, marketSummary),
+      );
+    }
+  }
+
+  /** Stores and publishes one current market summary. */
+  async processMarketSummary(marketSummary: MarketSummary): Promise<void> {
+    await this.#cache.setMarketSummary(marketSummary);
+
     await this.#eventBus.publish(
-      createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, marketSummaries),
+      createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, marketSummary),
     );
   }
 
