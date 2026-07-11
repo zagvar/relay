@@ -36,5 +36,14 @@ export default defineConfig(
   {
     files: ["**/*.{js,mjs,cjs}"],
     extends: [js.configs.recommended],
+    languageOptions: {
+      globals: {
+        Buffer: "readonly",
+        console: "readonly",
+        process: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+      },
+    },
   },
 );

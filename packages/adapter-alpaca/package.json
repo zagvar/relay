@@ -21,7 +21,8 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "smoke:stocks": "pnpm build && node scripts/smoke_stock_stream.mjs"
   },
   "dependencies": {
     "@zagvar/relay-core": "workspace:*",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@types/ws": "^8.18.1",
+    "dotenv": "^17.4.2",
     "typescript": "^6.0.3"
   }
 }

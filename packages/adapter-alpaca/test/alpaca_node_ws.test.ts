@@ -37,4 +37,22 @@ describe("Alpaca Node ws helpers", () => {
       "wss://stream.data.sandbox.alpaca.markets/v2/iex",
     );
   });
+
+  it("builds stream URLs from a custom base URL", () => {
+    expect(
+      createAlpacaStockStreamUrl({
+        baseUrl: "wss://market-data.example.com",
+        feed: "iex",
+      }),
+    ).toBe("wss://market-data.example.com/v2/iex");
+  });
+
+  it("removes a trailing slash from custom base URLs", () => {
+    expect(
+      createAlpacaStockStreamUrl({
+        baseUrl: "wss://market-data.example.com/",
+        feed: "iex",
+      }),
+    ).toBe("wss://market-data.example.com/v2/iex");
+  });
 });

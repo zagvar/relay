@@ -14,6 +14,7 @@ export type AlpacaStockDataFeed = "iex" | "sip" | "delayed_sip" | "test" | "boat
 export interface AlpacaStockStreamUrlOptions {
   readonly feed: AlpacaStockDataFeed;
   readonly sandbox?: boolean;
+  readonly baseUrl?: string;
 }
 
 /** Options for creating a Node `ws` Alpaca stock websocket client. */
@@ -33,10 +34,9 @@ export interface AlpacaNodeWsStockClient {
 
 /** Builds the Alpaca stock market data websocket URL. */
 export function createAlpacaStockStreamUrl(options: AlpacaStockStreamUrlOptions): string {
-  const host =
-    options.sandbox === true ? "stream.data.sandbox.alpaca.markets" : "stream.data.alpaca.markets";
+  const baseUrl = getAlpacaStockStreamBaseUrl(options).replace(/\/$/, "");
 
-  return `wss://${host}/${getAlpacaStockFeedVersion(options.feed)}/${options.feed}`;
+  return `${baseUrl}/${getAlpacaStockFeedVersion(options.feed)}/${options.feed}`;
 }
 
 /** Creates a Node `ws` backed Alpaca stock websocket client. */
@@ -95,8 +95,8 @@ class NodeWsAlpacaWebSocket implements AlpacaWebSocket {
 
   send(message: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.#websocket.send(message, (error?: Error) => {
-        if (error !== undefined) {
+      this.#websocket.send(message, (error?: Error | null) => {
+        if (error != null) {
           reject(error);
           return;
         }
@@ -116,6 +116,18 @@ class NodeWsAlpacaWebSocket implements AlpacaWebSocket {
       this.#websocket.close();
     });
   }
+}
+
+function getAlpacaStockStreamBaseUrl(options: AlpacaStockStreamUrlOptions): string {
+  if (options.baseUrl !== undefined) {
+    return options.baseUrl;
+  }
+
+  if (options.sandbox === true) {
+    return "wss://stream.data.sandbox.alpaca.markets";
+  }
+
+  return "wss://stream.data.alpaca.markets";
 }
 
 function getAlpacaStockFeedVersion(feed: AlpacaStockDataFeed): string {
