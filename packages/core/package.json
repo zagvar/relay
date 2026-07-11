@@ -1,6 +1,6 @@
 {
   "name": "@zagvar/relay-core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Provider-neutral market data contracts and utilities for Zagvar Relay.",
   "type": "module",
   "license": "MIT",
@@ -8,14 +8,18 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.json --noEmit",
@@ -24,6 +28,15 @@
     "test:run": "vitest run"
   },
   "author": "zayau",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zagvar/relay.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/zagvar/relay/tree/main/packages/core#readme",
+  "bugs": {
+    "url": "https://github.com/zagvar/relay/issues"
+  },
   "devDependencies": {
     "@types/node": "^26.1.1",
     "typescript": "^6.0.3"

@@ -1,6 +1,6 @@
 {
   "name": "relay",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Market data relay primitives for trading applications.",
   "type": "module",
@@ -14,12 +14,24 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "pnpm --recursive test",
-    "test:run": "pnpm --recursive test:run"
+    "test:run": "pnpm --recursive test:run",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "keywords": [],
   "author": "zayau",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zagvar/relay.git"
+  },
+  "homepage": "https://github.com/zagvar/relay#readme",
+  "bugs": {
+    "url": "https://github.com/zagvar/relay/issues"
+  },
   "license": "MIT",
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.6.0",
     "prettier": "^3.9.4",

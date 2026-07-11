@@ -1,6 +1,6 @@
 {
   "name": "@zagvar/relay-adapter-alpaca",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Alpaca market data adapter for Zagvar Relay.",
   "type": "module",
   "license": "MIT",
@@ -8,14 +8,18 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.json --noEmit",
@@ -23,6 +27,16 @@
     "test": "vitest",
     "test:run": "vitest run",
     "smoke:stocks": "pnpm build && node scripts/smoke_stock_stream.mjs"
+  },
+  "author": "zayau",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zagvar/relay.git",
+    "directory": "packages/adapter-alpaca"
+  },
+  "homepage": "https://github.com/zagvar/relay/tree/main/packages/adapter-alpaca#readme",
+  "bugs": {
+    "url": "https://github.com/zagvar/relay/issues"
   },
   "dependencies": {
     "@zagvar/relay-core": "workspace:*",
