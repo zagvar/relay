@@ -1,44 +1,44 @@
 import { describe, expect, it } from "vitest";
 import type {
   MarketBar,
-  MarketInstrument,
+  MarketIdentity,
   MarketQuote,
   MarketSummary,
   MarketTrade,
 } from "../src/market_data.js";
 
 describe("market data types", () => {
-  it("supports equity instruments", () => {
-    const instrument: MarketInstrument = {
+  it("supports equity identities", () => {
+    const identity: MarketIdentity = {
       symbol: "AAPL",
       assetClass: "equity",
-      exchange: "NASDAQ",
-      currency: "USD",
+      venue: "NASDAQ",
+      quoteAsset: "USD",
     };
 
-    expect(instrument).toEqual({
+    expect(identity).toEqual({
       symbol: "AAPL",
       assetClass: "equity",
-      exchange: "NASDAQ",
-      currency: "USD",
+      venue: "NASDAQ",
+      quoteAsset: "USD",
     });
   });
 
-  it("supports crypto pair instruments", () => {
-    const instrument: MarketInstrument = {
-      symbol: "BTC/USD",
+  it("supports digital-asset pair identities", () => {
+    const identity: MarketIdentity = {
+      symbol: "BTC/USDT",
       assetClass: "crypto",
       baseAsset: "BTC",
-      quoteAsset: "USD",
-      exchange: "COINBASE",
+      quoteAsset: "USDT",
+      venue: "COINBASE",
     };
 
-    expect(instrument).toEqual({
-      symbol: "BTC/USD",
+    expect(identity).toEqual({
+      symbol: "BTC/USDT",
       assetClass: "crypto",
       baseAsset: "BTC",
-      quoteAsset: "USD",
-      exchange: "COINBASE",
+      quoteAsset: "USDT",
+      venue: "COINBASE",
     });
   });
 
@@ -46,10 +46,11 @@ describe("market data types", () => {
     const quote: MarketQuote = {
       type: "quote",
       symbol: "AAPL",
+      assetClass: "equity",
       bidPrice: 195.1,
-      bidSize: 200,
+      bidQuantity: 200,
       askPrice: 195.12,
-      askSize: 100,
+      askQuantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -60,7 +61,7 @@ describe("market data types", () => {
       baseAsset: "BTC",
       quoteAsset: "USD",
       price: 109_500,
-      size: 0.05,
+      quantity: 0.05,
       timestamp: "2026-01-01T00:00:00.000Z",
     };
 

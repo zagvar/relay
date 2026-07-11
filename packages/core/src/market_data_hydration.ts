@@ -1,35 +1,37 @@
 import { normalizeSymbol } from "./symbols.js";
 import type { MarketDataCache } from "./market_data_cache.js";
 import type {
+  BarsRequest,
   MarketBar,
   MarketClock,
+  MarketDataRequest,
   MarketQuote,
   MarketSummary,
   MarketTrade,
 } from "./market_data.js";
+import type { OrderBookRequest, OrderBookSnapshot } from "./order_book.js";
 
 /** Request for cached market data suitable for initial client hydration. */
 export interface MarketDataHydrationRequest {
   readonly symbols?: readonly string[];
-  readonly bars?: readonly BarsHydrationRequest[];
+  readonly quotes?: readonly MarketDataRequest[];
+  readonly trades?: readonly MarketDataRequest[];
+  readonly bars?: readonly BarsRequest[];
+  readonly orderBooks?: readonly OrderBookRequest[];
   readonly includeMarketSummaries?: boolean;
-  readonly includeLatestQuotes?: boolean;
-  readonly includeLatestTrades?: boolean;
   readonly includeMarketClock?: boolean;
 }
 
 /** Request for cached bars in a hydration response. */
-export interface BarsHydrationRequest {
-  readonly symbol: string;
-  readonly timeframe: string;
-}
+export type BarsHydrationRequest = BarsRequest;
 
 /** Cached market data returned for initial client hydration. */
 export interface MarketDataHydration {
   readonly marketSummaries?: Readonly<Record<string, MarketSummary>>;
-  readonly latestQuotes?: Readonly<Record<string, MarketQuote>>;
-  readonly latestTrades?: Readonly<Record<string, MarketTrade>>;
-  readonly bars?: Readonly<Record<string, readonly MarketBar[]>>;
+  readonly latestQuotes?: readonly MarketQuote[];
+  readonly latestTrades?: readonly MarketTrade[];
+  readonly bars?: readonly MarketBar[];
+  readonly orderBookSnapshots?: readonly OrderBookSnapshot[];
   readonly marketClock?: MarketClock;
 }
 
@@ -45,9 +47,10 @@ export class MarketDataHydrator {
   async hydrate(request: MarketDataHydrationRequest): Promise<MarketDataHydration> {
     const hydration: {
       marketSummaries?: Readonly<Record<string, MarketSummary>>;
-      latestQuotes?: Readonly<Record<string, MarketQuote>>;
-      latestTrades?: Readonly<Record<string, MarketTrade>>;
-      bars?: Readonly<Record<string, readonly MarketBar[]>>;
+      latestQuotes?: readonly MarketQuote[];
+      latestTrades?: readonly MarketTrade[];
+      bars?: readonly MarketBar[];
+      orderBookSnapshots?: readonly OrderBookSnapshot[];
       marketClock?: MarketClock;
     } = {};
 
@@ -57,16 +60,20 @@ export class MarketDataHydrator {
       hydration.marketSummaries = await this.#hydrateMarketSummaries(symbols);
     }
 
-    if (request.includeLatestQuotes === true) {
-      hydration.latestQuotes = await this.#hydrateLatestQuotes(symbols);
+    if (request.quotes !== undefined) {
+      hydration.latestQuotes = await this.#hydrateLatestQuotes(request.quotes);
     }
 
-    if (request.includeLatestTrades === true) {
-      hydration.latestTrades = await this.#hydrateLatestTrades(symbols);
+    if (request.trades !== undefined) {
+      hydration.latestTrades = await this.#hydrateLatestTrades(request.trades);
     }
 
     if (request.bars !== undefined) {
       hydration.bars = await this.#hydrateBars(request.bars);
+    }
+
+    if (request.orderBooks !== undefined) {
+      hydration.orderBookSnapshots = await this.#hydrateOrderBooks(request.orderBooks);
     }
 
     if (request.includeMarketClock === true) {
@@ -99,45 +106,46 @@ export class MarketDataHydrator {
   }
 
   async #hydrateLatestQuotes(
-    symbols: readonly string[],
-  ): Promise<Readonly<Record<string, MarketQuote>>> {
+    requests: readonly MarketDataRequest[],
+  ): Promise<readonly MarketQuote[]> {
     const quotes = await Promise.all(
-      symbols.map(async (symbol) => [symbol, await this.#cache.getLatestQuote(symbol)] as const),
+      requests.map(async (request) => this.#cache.getLatestQuote(request)),
     );
 
-    return Object.fromEntries(
-      quotes.flatMap(([symbol, quote]) => (quote === undefined ? [] : [[symbol, quote]])),
+    return quotes.filter(
+      (quote): quote is MarketQuote => quote !== undefined,
     );
   }
 
   async #hydrateLatestTrades(
-    symbols: readonly string[],
-  ): Promise<Readonly<Record<string, MarketTrade>>> {
+    requests: readonly MarketDataRequest[],
+  ): Promise<readonly MarketTrade[]> {
     const trades = await Promise.all(
-      symbols.map(async (symbol) => [symbol, await this.#cache.getLatestTrade(symbol)] as const),
+      requests.map(async (request) => this.#cache.getLatestTrade(request)),
     );
 
-    return Object.fromEntries(
-      trades.flatMap(([symbol, trade]) => (trade === undefined ? [] : [[symbol, trade]])),
+    return trades.filter(
+      (trade): trade is MarketTrade => trade !== undefined,
     );
   }
 
   async #hydrateBars(
-    requests: readonly BarsHydrationRequest[],
-  ): Promise<Readonly<Record<string, readonly MarketBar[]>>> {
-    const bars = await Promise.all(
-      requests.map(async (request) => {
-        const symbol = normalizeSymbol(request.symbol);
-        const key = createBarsHydrationKey(symbol, request.timeframe);
-
-        return [key, await this.#cache.getBars(symbol, request.timeframe)] as const;
-      }),
+    requests: readonly BarsRequest[],
+  ): Promise<readonly MarketBar[]> {
+    const barGroups = await Promise.all(
+      requests.map(async (request) => this.#cache.getBars(request)),
     );
 
-    return Object.fromEntries(bars);
+    return barGroups.flat();
   }
-}
 
-function createBarsHydrationKey(symbol: string, timeframe: string): string {
-  return `${symbol}:${timeframe}`;
+  async #hydrateOrderBooks(
+    requests: readonly OrderBookRequest[],
+  ): Promise<readonly OrderBookSnapshot[]> {
+    const snapshots = await Promise.all(
+      requests.map(async (request) => this.#cache.getOrderBookSnapshot(request)),
+    );
+
+    return snapshots.filter((snapshot): snapshot is OrderBookSnapshot => snapshot !== undefined);
+  }
 }

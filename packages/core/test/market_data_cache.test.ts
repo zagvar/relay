@@ -7,6 +7,7 @@ import type {
   MarketSummary,
   MarketTrade,
 } from "../src/market_data.js";
+import type { OrderBookSnapshot } from "../src/order_book.js";
 
 describe("MemoryMarketDataCache", () => {
   it("stores and returns latest quotes", async () => {
@@ -14,16 +15,17 @@ describe("MemoryMarketDataCache", () => {
     const quote: MarketQuote = {
       type: "quote",
       symbol: "AAPL",
+      assetClass: "equity",
       bidPrice: 195.1,
-      bidSize: 200,
+      bidQuantity: 200,
       askPrice: 195.12,
-      askSize: 100,
+      askQuantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     await cache.setLatestQuote(quote);
 
-    expect(await cache.getLatestQuote("aapl")).toEqual(quote);
+    expect(await cache.getLatestQuote({ symbol: "aapl" })).toEqual(quote);
   });
 
   it("stores and returns latest trades", async () => {
@@ -31,14 +33,111 @@ describe("MemoryMarketDataCache", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     await cache.setLatestTrade(trade);
 
-    expect(await cache.getLatestTrade("AAPL")).toEqual(trade);
+    expect(await cache.getLatestTrade({ symbol: "AAPL" })).toEqual(trade);
+  });
+
+  it("keeps latest quotes and trades isolated by venue", async () => {
+    const cache = new MemoryMarketDataCache();
+    const coinbaseQuote: MarketQuote = {
+      type: "quote",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      bidPrice: 65_000,
+      bidQuantity: 1,
+      askPrice: 65_001,
+      askQuantity: 1,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+    const binanceTrade: MarketTrade = {
+      type: "trade",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "BINANCE",
+      price: 65_000.5,
+      quantity: 0.1,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.setLatestQuote(coinbaseQuote);
+    await cache.setLatestTrade(binanceTrade);
+
+    await expect(
+      cache.getLatestQuote({ symbol: "btc/usdt", venue: "coinbase" }),
+    ).resolves.toEqual(coinbaseQuote);
+    await expect(
+      cache.getLatestQuote({ symbol: "BTC/USDT", venue: "BINANCE" }),
+    ).resolves.toBeUndefined();
+    await expect(
+      cache.getLatestTrade({ symbol: "btc/usdt", venue: "binance" }),
+    ).resolves.toEqual(binanceTrade);
+    await expect(
+      cache.getLatestTrade({ symbol: "BTC/USDT" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("stores and returns a venue-specific order-book snapshot", async () => {
+    const cache = new MemoryMarketDataCache();
+    const snapshot: OrderBookSnapshot = {
+      type: "order_book_snapshot",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bids: [{ price: 65_000, quantity: 1.25 }],
+      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      timestamp: "2026-01-01T14:30:00.000Z",
+      sequence: 100,
+    };
+
+    await cache.setOrderBookSnapshot(snapshot);
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "btc/usdt",
+        venue: "coinbase",
+      }),
+    ).resolves.toEqual(snapshot);
+  });
+
+  it("keeps venue-specific order books isolated", async () => {
+    const cache = new MemoryMarketDataCache();
+    const snapshot: OrderBookSnapshot = {
+      type: "order_book_snapshot",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bids: [{ price: 65_000, quantity: 1.25 }],
+      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      timestamp: "2026-01-01T14:30:00.000Z",
+      sequence: 100,
+    };
+
+    await cache.setOrderBookSnapshot(snapshot);
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "BTC/USDT",
+        venue: "BINANCE",
+      }),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "BTC/USDT",
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it("stores and returns marketSummaries", async () => {
@@ -46,6 +145,7 @@ describe("MemoryMarketDataCache", () => {
     const marketSummaries: Record<string, MarketSummary> = {
       AAPL: {
         symbol: "AAPL",
+        assetClass: "equity",
         price: 195.12,
         previousClose: 190,
       },
@@ -60,6 +160,7 @@ describe("MemoryMarketDataCache", () => {
     const cache = new MemoryMarketDataCache();
     const marketSummary: MarketSummary = {
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
     };
 
@@ -73,6 +174,7 @@ describe("MemoryMarketDataCache", () => {
     const bar: MarketBar = {
       type: "bar",
       symbol: "AAPL",
+      assetClass: "equity",
       timeframe: "1Min",
       open: 190,
       high: 196,
@@ -84,8 +186,8 @@ describe("MemoryMarketDataCache", () => {
 
     await cache.appendBar(bar);
 
-    expect(await cache.getBars("AAPL", "1Min")).toEqual([bar]);
-    expect(await cache.getBars("AAPL", "5Min")).toEqual([]);
+    expect(await cache.getBars({ symbol: "AAPL", timeframe: "1Min" })).toEqual([bar]);
+    expect(await cache.getBars({ symbol: "AAPL", timeframe: "5Min" })).toEqual([]);
   });
 
   it("stores and returns market clock", async () => {
@@ -106,14 +208,15 @@ describe("MemoryMarketDataCache", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "aapl",
+      assetClass: "equity",
       price: 195.12,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     await cache.setLatestTrade(trade);
 
-    expect(await cache.getLatestTrade("AAPL")).toEqual(trade);
+    expect(await cache.getLatestTrade({ symbol: "AAPL" })).toEqual(trade);
   });
 
   it("normalizes bar lookup symbols", async () => {
@@ -121,6 +224,7 @@ describe("MemoryMarketDataCache", () => {
     const bar: MarketBar = {
       type: "bar",
       symbol: "aapl",
+      assetClass: "equity",
       timeframe: "1Min",
       open: 190,
       high: 196,
@@ -132,6 +236,6 @@ describe("MemoryMarketDataCache", () => {
 
     await cache.appendBar(bar);
 
-    expect(await cache.getBars("AAPL", "1Min")).toEqual([bar]);
+    expect(await cache.getBars({ symbol: "AAPL", timeframe: "1Min" })).toEqual([bar]);
   });
 });

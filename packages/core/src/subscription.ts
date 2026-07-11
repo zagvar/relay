@@ -1,18 +1,19 @@
 import type { MarketEventChannel } from "./event_channel.js";
-import { normalizeSymbol } from "./symbols.js";
+import type { BarsRequest, MarketDataRequest } from "./market_data.js";
+import {
+  createMarketDataRequestKey,
+  normalizeSymbol,
+} from "./symbols.js";
 
 /** Identifies a cached or live bar stream for one symbol and timeframe. */
-export interface BarSubscription {
-  readonly symbol: string;
-  readonly timeframe: string;
-}
+export type BarSubscription = BarsRequest;
 
 /** Tracks one client's market data subscriptions. */
 export class MarketDataSubscriptionState {
   readonly #channels = new Set<MarketEventChannel>();
   readonly #marketSummarySymbols = new Set<string>();
-  readonly #quoteSymbols = new Set<string>();
-  readonly #tradeSymbols = new Set<string>();
+  readonly #quoteKeys = new Set<string>();
+  readonly #tradeKeys = new Set<string>();
   readonly #barKeys = new Set<string>();
 
   /** Returns subscribed channels in insertion order. */
@@ -26,13 +27,13 @@ export class MarketDataSubscriptionState {
   }
 
   /** Returns subscribed quote symbols in insertion order. */
-  get quoteSymbols(): readonly string[] {
-    return [...this.#quoteSymbols];
+  get quoteKeys(): readonly string[] {
+    return [...this.#quoteKeys];
   }
 
   /** Returns subscribed trade symbols in insertion order. */
-  get tradeSymbols(): readonly string[] {
-    return [...this.#tradeSymbols];
+  get tradeKeys(): readonly string[] {
+    return [...this.#tradeKeys];
   }
 
   /** Returns subscribed bar keys in insertion order. */
@@ -75,41 +76,41 @@ export class MarketDataSubscriptionState {
   }
 
   /** Adds quote subscriptions for the provided symbols. */
-  subscribeQuotes(symbols: readonly string[]): void {
-    for (const symbol of symbols) {
-      this.#quoteSymbols.add(normalizeSymbol(symbol));
+  subscribeQuotes(requests: readonly MarketDataRequest[]): void {
+    for (const request of requests) {
+      this.#quoteKeys.add(createMarketDataRequestKey(request));
     }
   }
 
   /** Removes quote subscriptions for the provided symbols. */
-  unsubscribeQuotes(symbols: readonly string[]): void {
-    for (const symbol of symbols) {
-      this.#quoteSymbols.delete(normalizeSymbol(symbol));
+  unsubscribeQuotes(requests: readonly MarketDataRequest[]): void {
+    for (const request of requests) {
+      this.#quoteKeys.delete(createMarketDataRequestKey(request));
     }
   }
 
   /** Returns true when subscribed to quotes for a symbol. */
-  hasQuoteSymbol(symbol: string): boolean {
-    return this.#quoteSymbols.has(normalizeSymbol(symbol));
+  hasQuoteSubscription(request: MarketDataRequest): boolean {
+    return this.#quoteKeys.has(createMarketDataRequestKey(request));
   }
 
   /** Adds trade subscriptions for the provided symbols. */
-  subscribeTrades(symbols: readonly string[]): void {
-    for (const symbol of symbols) {
-      this.#tradeSymbols.add(normalizeSymbol(symbol));
+  subscribeTrades(requests: readonly MarketDataRequest[]): void {
+    for (const request of requests) {
+      this.#tradeKeys.add(createMarketDataRequestKey(request));
     }
   }
 
   /** Removes trade subscriptions for the provided symbols. */
-  unsubscribeTrades(symbols: readonly string[]): void {
-    for (const symbol of symbols) {
-      this.#tradeSymbols.delete(normalizeSymbol(symbol));
+  unsubscribeTrades(requests: readonly MarketDataRequest[]): void {
+    for (const request of requests) {
+      this.#tradeKeys.delete(createMarketDataRequestKey(request));
     }
   }
 
   /** Returns true when this client is subscribed to trades for a symbol. */
-  hasTradeSymbol(symbol: string): boolean {
-    return this.#tradeSymbols.has(normalizeSymbol(symbol));
+  hasTradeSubscription(request: MarketDataRequest): boolean {
+    return this.#tradeKeys.has(createMarketDataRequestKey(request));
   }
 
   /** Adds a bar subscription. */
@@ -131,13 +132,16 @@ export class MarketDataSubscriptionState {
   clear(): void {
     this.#channels.clear();
     this.#marketSummarySymbols.clear();
-    this.#quoteSymbols.clear();
-    this.#tradeSymbols.clear();
+    this.#quoteKeys.clear();
+    this.#tradeKeys.clear();
     this.#barKeys.clear();
   }
 }
 
 /** Creates a stable key for bar subscriptions. */
 export function createBarSubscriptionKey(subscription: BarSubscription): string {
-  return `${normalizeSymbol(subscription.symbol)}:${subscription.timeframe}`;
+  return JSON.stringify([
+    createMarketDataRequestKey(subscription),
+    subscription.timeframe,
+  ]);
 }

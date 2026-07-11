@@ -10,6 +10,35 @@ import type {
   MarketSummary,
   MarketTrade,
 } from "../src/market_data.js";
+import type { OrderBookSnapshot, OrderBookUpdate } from "../src/order_book.js";
+
+const orderBookSnapshot: OrderBookSnapshot = {
+  type: "order_book_snapshot",
+  symbol: "BTC/USDT",
+  assetClass: "crypto",
+  venue: "COINBASE",
+  baseAsset: "BTC",
+  quoteAsset: "USDT",
+  bids: [{ price: 65_000, quantity: 1.25 }],
+  asks: [{ price: 65_001, quantity: 0.8 }],
+  timestamp: "2026-01-01T14:30:00.000Z",
+  sequence: 100,
+};
+
+const orderBookUpdate: OrderBookUpdate = {
+  type: "order_book_update",
+  symbol: "BTC/USDT",
+  assetClass: "crypto",
+  venue: "COINBASE",
+  baseAsset: "BTC",
+  quoteAsset: "USDT",
+  bids: [{ price: 65_000, quantity: 2 }],
+  asks: [{ price: 65_001, quantity: 0 }],
+  timestamp: "2026-01-01T14:30:01.000Z",
+  sequence: 101,
+  previousSequence: 100,
+  reset: false,
+};
 
 describe("MarketDataPipeline", () => {
   it("stores and publishes trade events", async () => {
@@ -25,14 +54,15 @@ describe("MarketDataPipeline", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     await pipeline.processEvent(trade);
 
-    expect(await cache.getLatestTrade("AAPL")).toEqual(trade);
+    expect(await cache.getLatestTrade({ symbol: "AAPL" })).toEqual(trade);
     expect(publishedMessages).toEqual([
       {
         channel: "trade",
@@ -54,16 +84,17 @@ describe("MarketDataPipeline", () => {
     const quote: MarketQuote = {
       type: "quote",
       symbol: "AAPL",
+      assetClass: "equity",
       bidPrice: 195.1,
-      bidSize: 200,
+      bidQuantity: 200,
       askPrice: 195.12,
-      askSize: 100,
+      askQuantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     await pipeline.processEvent(quote);
 
-    expect(await cache.getLatestQuote("AAPL")).toEqual(quote);
+    expect(await cache.getLatestQuote({ symbol: "AAPL" })).toEqual(quote);
     expect(publishedMessages).toEqual([
       {
         channel: "quote",
@@ -85,6 +116,7 @@ describe("MarketDataPipeline", () => {
     const bar: MarketBar = {
       type: "bar",
       symbol: "AAPL",
+      assetClass: "equity",
       timeframe: "1Min",
       open: 190,
       high: 196,
@@ -96,13 +128,123 @@ describe("MarketDataPipeline", () => {
 
     await pipeline.processEvent(bar);
 
-    expect(await cache.getBars("AAPL", "1Min")).toEqual([bar]);
+    expect(await cache.getBars({ symbol: "AAPL", timeframe: "1Min" })).toEqual([bar]);
     expect(publishedMessages).toEqual([
       {
         channel: "bar",
         data: bar,
       },
     ]);
+  });
+
+  it("stores and publishes order-book snapshots", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({
+      cache,
+      eventBus,
+    });
+    const publishedMessages: unknown[] = [];
+
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.orderBook, (message) => {
+      publishedMessages.push(message);
+    });
+
+    await pipeline.processEvent(orderBookSnapshot);
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "BTC/USDT",
+        venue: "COINBASE",
+      }),
+    ).resolves.toEqual(orderBookSnapshot);
+
+    expect(publishedMessages).toEqual([
+      {
+        channel: "order_book",
+        data: orderBookSnapshot,
+      },
+    ]);
+  });
+
+  it("reconciles, stores, and publishes order-book updates", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({
+      cache,
+      eventBus,
+    });
+    const publishedMessages: unknown[] = [];
+
+    await pipeline.processEvent(orderBookSnapshot);
+
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.orderBook, (message) => {
+      publishedMessages.push(message);
+    });
+
+    await pipeline.processEvent(orderBookUpdate);
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "BTC/USDT",
+        venue: "COINBASE",
+      }),
+    ).resolves.toEqual({
+      ...orderBookSnapshot,
+      bids: [{ price: 65_000, quantity: 2 }],
+      asks: [],
+      timestamp: "2026-01-01T14:30:01.000Z",
+      sequence: 101,
+    });
+
+    expect(publishedMessages).toEqual([
+      {
+        channel: "order_book",
+        data: orderBookUpdate,
+      },
+    ]);
+  });
+
+  it("rejects an update when no snapshot is cached", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({
+      cache,
+      eventBus,
+    });
+
+    await expect(pipeline.processEvent(orderBookUpdate)).rejects.toMatchObject({
+      name: "OrderBookPipelineError",
+      code: "snapshot_missing",
+    });
+  });
+
+  it("rejects sequence gaps without changing the cached book", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({
+      cache,
+      eventBus,
+    });
+
+    await pipeline.processEvent(orderBookSnapshot);
+
+    await expect(
+      pipeline.processEvent({
+        ...orderBookUpdate,
+        previousSequence: 99,
+      }),
+    ).rejects.toMatchObject({
+      name: "OrderBookPipelineError",
+      code: "sequence_gap",
+    });
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "BTC/USDT",
+        venue: "COINBASE",
+      }),
+    ).resolves.toEqual(orderBookSnapshot);
   });
 
   it("stores and publishes market summaries", async () => {
@@ -118,6 +260,7 @@ describe("MarketDataPipeline", () => {
     const marketSummaries: Record<string, MarketSummary> = {
       AAPL: {
         symbol: "AAPL",
+        assetClass: "equity",
         price: 195.12,
         previousClose: 190,
       },
@@ -141,6 +284,7 @@ describe("MarketDataPipeline", () => {
     const publishedMessages: unknown[] = [];
     const marketSummary: MarketSummary = {
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
       previousClose: 190,
     };

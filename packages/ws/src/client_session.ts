@@ -84,16 +84,16 @@ export class RelayClientSession {
         this.#subscriptions.unsubscribeMarketSummaries(message.symbols);
         return;
       case "subscribe_quotes":
-        this.#subscriptions.subscribeQuotes(message.symbols);
+        this.#subscriptions.subscribeQuotes(message.quotes);
         return;
       case "unsubscribe_quotes":
-        this.#subscriptions.unsubscribeQuotes(message.symbols);
+        this.#subscriptions.unsubscribeQuotes(message.quotes);
         return;
       case "subscribe_trades":
-        this.#subscriptions.subscribeTrades(message.symbols);
+        this.#subscriptions.subscribeTrades(message.trades);
         return;
       case "unsubscribe_trades":
-        this.#subscriptions.unsubscribeTrades(message.symbols);
+        this.#subscriptions.unsubscribeTrades(message.trades);
         return;
       case "subscribe_bars":
         for (const bar of message.bars) {
@@ -156,11 +156,11 @@ export class RelayClientSession {
   }
 
   #shouldForwardQuote(data: unknown): boolean {
-    return isQuoteEventData(data) && this.#subscriptions.hasQuoteSymbol(data.symbol);
+    return isQuoteEventData(data) && this.#subscriptions.hasQuoteSubscription(data);
   }
 
   #shouldForwardTrade(data: unknown): boolean {
-    return isTradeEventData(data) && this.#subscriptions.hasTradeSymbol(data.symbol);
+    return isTradeEventData(data) && this.#subscriptions.hasTradeSubscription(data);
   }
 
   #shouldForwardBar(data: unknown): boolean {
@@ -175,11 +175,13 @@ interface MarketSummaryEventData {
 interface QuoteEventData {
   readonly type: "quote";
   readonly symbol: string;
+  readonly venue?: string;
 }
 
 interface TradeEventData {
   readonly type: "trade";
   readonly symbol: string;
+  readonly venue?: string;
 }
 
 interface BarEventData extends BarSubscription {
@@ -191,11 +193,21 @@ function isMarketSummaryEventData(value: unknown): value is MarketSummaryEventDa
 }
 
 function isQuoteEventData(value: unknown): value is QuoteEventData {
-  return isRecord(value) && value.type === "quote" && typeof value.symbol === "string";
+  return (
+    isRecord(value) &&
+    value.type === "quote" &&
+    typeof value.symbol === "string" &&
+    (value.venue === undefined || typeof value.venue === "string")
+  );
 }
 
 function isTradeEventData(value: unknown): value is TradeEventData {
-  return isRecord(value) && value.type === "trade" && typeof value.symbol === "string";
+  return (
+    isRecord(value) &&
+    value.type === "trade" &&
+    typeof value.symbol === "string" &&
+    (value.venue === undefined || typeof value.venue === "string")
+  );
 }
 
 function isBarEventData(value: unknown): value is BarEventData {

@@ -1,11 +1,15 @@
 import { normalizeSymbol } from "@zagvar/relay-core";
 import type {
+  BarsRequest,
   MarketBar,
   MarketClock,
   MarketDataCache,
+  MarketDataRequest,
   MarketQuote,
   MarketSummary,
   MarketTrade,
+  OrderBookRequest,
+  OrderBookSnapshot,
 } from "@zagvar/relay-core";
 import { RelayRedisKeys, type RelayRedisKeyOptions } from "./redis_keys.js";
 import type { RedisCacheClient } from "./redis_client.js";
@@ -52,13 +56,16 @@ export class RedisMarketDataCache implements MarketDataCache {
   async setLatestQuote(quote: MarketQuote): Promise<void> {
     await this.#client.hSet(
       this.#keys.latestQuotes(),
-      normalizeSymbol(quote.symbol),
+      this.#keys.marketDataField(quote),
       JSON.stringify(quote),
     );
   }
 
-  async getLatestQuote(symbol: string): Promise<MarketQuote | undefined> {
-    const value = await this.#client.hGet(this.#keys.latestQuotes(), normalizeSymbol(symbol));
+  async getLatestQuote(request: MarketDataRequest): Promise<MarketQuote | undefined> {
+    const value = await this.#client.hGet(
+      this.#keys.latestQuotes(),
+      this.#keys.marketDataField(request),
+    );
 
     return value === null ? undefined : (JSON.parse(value) as MarketQuote);
   }
@@ -66,15 +73,35 @@ export class RedisMarketDataCache implements MarketDataCache {
   async setLatestTrade(trade: MarketTrade): Promise<void> {
     await this.#client.hSet(
       this.#keys.latestTrades(),
-      normalizeSymbol(trade.symbol),
+      this.#keys.marketDataField(trade),
       JSON.stringify(trade),
     );
   }
 
-  async getLatestTrade(symbol: string): Promise<MarketTrade | undefined> {
-    const value = await this.#client.hGet(this.#keys.latestTrades(), normalizeSymbol(symbol));
+  async getLatestTrade(request: MarketDataRequest): Promise<MarketTrade | undefined> {
+    const value = await this.#client.hGet(
+      this.#keys.latestTrades(),
+      this.#keys.marketDataField(request),
+    );
 
     return value === null ? undefined : (JSON.parse(value) as MarketTrade);
+  }
+
+  async setOrderBookSnapshot(snapshot: OrderBookSnapshot): Promise<void> {
+    await this.#setJson(
+      this.#keys.orderBookSnapshot({
+        symbol: snapshot.symbol,
+        ...(snapshot.venue === undefined ? {} : { venue: snapshot.venue }),
+      }),
+      snapshot,
+      undefined,
+    );
+  }
+
+  async getOrderBookSnapshot(request: OrderBookRequest): Promise<OrderBookSnapshot | undefined> {
+    const value = await this.#client.get(this.#keys.orderBookSnapshot(request));
+
+    return value === null ? undefined : (JSON.parse(value) as OrderBookSnapshot);
   }
 
   async setMarketSummary(marketSummary: MarketSummary): Promise<void> {
@@ -118,7 +145,7 @@ export class RedisMarketDataCache implements MarketDataCache {
   }
 
   async appendBar(bar: MarketBar): Promise<void> {
-    const key = this.#keys.bars(bar.symbol, bar.timeframe);
+    const key = this.#keys.bars(bar);
     const score = new Date(bar.timestamp).getTime();
     const retentionPolicy = this.#getBarRetentionPolicy(bar.timeframe);
 
@@ -133,8 +160,8 @@ export class RedisMarketDataCache implements MarketDataCache {
     }
   }
 
-  async getBars(symbol: string, timeframe: string): Promise<readonly MarketBar[]> {
-    const values = await this.#client.zRange(this.#keys.bars(symbol, timeframe), 0, -1);
+  async getBars(request: BarsRequest): Promise<readonly MarketBar[]> {
+    const values = await this.#client.zRange(this.#keys.bars(request), 0, -1);
 
     return values.map((value) => JSON.parse(value) as MarketBar);
   }

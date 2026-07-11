@@ -25,16 +25,19 @@ describe("MarketSummaryConflator", () => {
 
     conflator.update({
       symbol: " aapl ",
+      assetClass: "equity",
       price: 195.1,
     });
 
     conflator.update({
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.2,
     });
 
     conflator.update({
       symbol: "MSFT",
+      assetClass: "equity",
       price: 420.5,
     });
 
@@ -44,10 +47,12 @@ describe("MarketSummaryConflator", () => {
       [
         {
           symbol: "AAPL",
+          assetClass: "equity",
           price: 195.2,
         },
         {
           symbol: "MSFT",
+          assetClass: "equity",
           price: 420.5,
         },
       ],
@@ -68,6 +73,7 @@ describe("MarketSummaryConflator", () => {
 
     conflator.update({
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.1,
     });
 
@@ -78,6 +84,7 @@ describe("MarketSummaryConflator", () => {
       [
         {
           symbol: "AAPL",
+          assetClass: "equity",
           price: 195.1,
         },
       ],
@@ -98,6 +105,7 @@ describe("MarketSummaryConflator", () => {
 
     conflator.update({
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.1,
     });
 
@@ -107,6 +115,7 @@ describe("MarketSummaryConflator", () => {
       [
         {
           symbol: "AAPL",
+          assetClass: "equity",
           price: 195.1,
         },
       ],
@@ -115,6 +124,7 @@ describe("MarketSummaryConflator", () => {
     expect(() => {
       conflator.update({
         symbol: "MSFT",
+        assetClass: "equity",
         price: 420.5,
       });
     }).toThrow("Cannot update a closed conflator.");
@@ -133,6 +143,7 @@ describe("MarketSummaryConflator", () => {
 
     conflator.update({
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.1,
     });
 

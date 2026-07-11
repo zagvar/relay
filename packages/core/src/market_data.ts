@@ -1,53 +1,61 @@
+import type { OrderBookEvent } from "./order_book.js";
+
 /** A broad asset class supported by market data providers. */
 export type AssetClass =
   "equity" | "crypto" | "fx" | "commodity" | "index" | "fund" | "option" | "future" | "other";
 
-/** Provider-neutral identity for a market instrument. */
-export interface MarketInstrument {
+/**
+ * Provider-neutral identity shared by Relay market-data contracts.
+ *
+ * `assetClass` describes the instrument's economic exposure.
+ * `venue` identifies where its market data or trading activity originates.
+ * Pair-based instruments may also provide `baseAsset` and `quoteAsset`.
+ */
+export interface MarketIdentity {
   readonly symbol: string;
-  readonly assetClass?: AssetClass;
-  readonly exchange?: string;
-  readonly currency?: string;
+  readonly assetClass: AssetClass;
+  readonly venue?: string;
   readonly baseAsset?: string;
   readonly quoteAsset?: string;
 }
 
-/** A normalized latest trade event from a market data provider. */
-export interface MarketTrade {
-  readonly type: "trade";
+/** Identifies one symbol and optional venue in cache and subscription APIs. */
+export interface MarketDataRequest {
   readonly symbol: string;
+  readonly venue?: string;
+}
+
+/** A normalized latest trade event from a market data provider. */
+export interface MarketTrade extends MarketIdentity {
+  readonly type: "trade";
   readonly price: number;
-  readonly size: number;
+  readonly quantity: number;
   readonly timestamp: string;
-  readonly assetClass?: AssetClass;
-  readonly exchange?: string;
-  readonly currency?: string;
-  readonly baseAsset?: string;
-  readonly quoteAsset?: string;
   readonly providerTradeId?: string;
 }
 
 /** A normalized best bid and offer update. */
-export interface MarketQuote {
+export interface MarketQuote extends MarketIdentity {
   readonly type: "quote";
-  readonly symbol: string;
   readonly bidPrice: number;
-  readonly bidSize: number;
+  readonly bidQuantity: number;
   readonly askPrice: number;
-  readonly askSize: number;
+  readonly askQuantity: number;
   readonly timestamp: string;
-  readonly assetClass?: AssetClass;
-  readonly bidExchange?: string;
-  readonly askExchange?: string;
-  readonly currency?: string;
-  readonly baseAsset?: string;
-  readonly quoteAsset?: string;
+
+  /**
+   * Venues currently contributing the best bid and ask.
+   *
+   * These may differ from the identity-level `venue` when the quote is
+   * consolidated across multiple venues.
+   */
+  readonly bidVenue?: string;
+  readonly askVenue?: string;
 }
 
 /** A normalized OHLCV bar. */
-export interface MarketBar {
+export interface MarketBar extends MarketIdentity {
   readonly type: "bar";
-  readonly symbol: string;
   readonly timeframe: string;
   readonly open: number;
   readonly high: number;
@@ -55,11 +63,6 @@ export interface MarketBar {
   readonly close: number;
   readonly volume: number;
   readonly timestamp: string;
-  readonly assetClass?: AssetClass;
-  readonly exchange?: string;
-  readonly currency?: string;
-  readonly baseAsset?: string;
-  readonly quoteAsset?: string;
   readonly tradeCount?: number;
   readonly volumeWeightedAveragePrice?: number;
 }
@@ -69,16 +72,10 @@ export interface MarketBar {
  *
  * Suitable for watchlists, market tables, and portfolio displays.
  */
-export interface MarketSummary {
-  readonly symbol: string;
+export interface MarketSummary extends MarketIdentity {
   readonly price: number;
   readonly timestamp?: string;
-  readonly assetClass?: AssetClass;
-  readonly exchange?: string;
-  readonly currency?: string;
-  readonly baseAsset?: string;
-  readonly quoteAsset?: string;
-  readonly size?: number;
+  readonly quantity?: number;
   readonly open?: number;
   readonly high?: number;
   readonly low?: number;
@@ -88,9 +85,9 @@ export interface MarketSummary {
   readonly change?: number;
   readonly changePercent?: number;
   readonly bidPrice?: number;
-  readonly bidSize?: number;
+  readonly bidQuantity?: number;
   readonly askPrice?: number;
-  readonly askSize?: number;
+  readonly askQuantity?: number;
 }
 
 /** A normalized exchange or venue clock. */
@@ -102,8 +99,7 @@ export interface MarketClock {
 }
 
 /** Request parameters for historical bars. */
-export interface BarsRequest {
-  readonly symbol: string;
+export interface BarsRequest extends MarketDataRequest {
   readonly timeframe: string;
   readonly start?: string;
   readonly end?: string;
@@ -111,4 +107,4 @@ export interface BarsRequest {
 }
 
 /** Any normalized market event Relay can move through a transport. */
-export type MarketEvent = MarketTrade | MarketQuote | MarketBar;
+export type MarketEvent = MarketTrade | MarketQuote | MarketBar | OrderBookEvent;

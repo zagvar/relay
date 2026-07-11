@@ -32,11 +32,13 @@ describe("RelayClientSession", () => {
     const session = new RelayClientSession({ socket, eventBus });
     const aaplSummary: MarketSummary = {
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
       previousClose: 190,
     };
     const msftSummary: MarketSummary = {
       symbol: "MSFT",
+      assetClass: "equity",
       price: 420.5,
       previousClose: 415,
     };
@@ -80,10 +82,12 @@ describe("RelayClientSession", () => {
     const quote: MarketQuote = {
       type: "quote",
       symbol: "AAPL",
+      assetClass: "equity",
+      venue: "NASDAQ",
       bidPrice: 195.1,
-      bidSize: 200,
+      bidQuantity: 200,
       askPrice: 195.12,
-      askSize: 100,
+      askQuantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -92,7 +96,7 @@ describe("RelayClientSession", () => {
     await session.handleMessage(
       JSON.stringify({
         type: "subscribe_quotes",
-        symbols: ["AAPL"],
+        quotes: [{ symbol: "AAPL", venue: "NASDAQ" }],
       }),
     );
 
@@ -101,7 +105,7 @@ describe("RelayClientSession", () => {
     await session.handleMessage(
       JSON.stringify({
         type: "unsubscribe_quotes",
-        symbols: ["AAPL"],
+        quotes: [{ symbol: "AAPL", venue: "NASDAQ" }],
       }),
     );
 
@@ -125,8 +129,9 @@ describe("RelayClientSession", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -135,7 +140,7 @@ describe("RelayClientSession", () => {
     await session.handleMessage(
       JSON.stringify({
         type: "subscribe_trades",
-        symbols: ["AAPL"],
+        trades: [{ symbol: "AAPL" }],
       }),
     );
 
@@ -159,8 +164,9 @@ describe("RelayClientSession", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "MSFT",
+      assetClass: "equity",
       price: 420.5,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -169,7 +175,7 @@ describe("RelayClientSession", () => {
     await session.handleMessage(
       JSON.stringify({
         type: "subscribe_trades",
-        symbols: ["AAPL"],
+        trades: [{ symbol: "AAPL" }],
       }),
     );
 
@@ -185,6 +191,7 @@ describe("RelayClientSession", () => {
     const bar: MarketBar = {
       type: "bar",
       symbol: "AAPL",
+      assetClass: "equity",
       timeframe: "1Min",
       open: 190,
       high: 196,
@@ -226,6 +233,7 @@ describe("RelayClientSession", () => {
     await cache.setMarketSummaries({
       AAPL: {
         symbol: "AAPL",
+        assetClass: "equity",
         price: 195.12,
       },
     });
@@ -247,6 +255,7 @@ describe("RelayClientSession", () => {
           marketSummaries: {
             AAPL: {
               symbol: "AAPL",
+              assetClass: "equity",
               price: 195.12,
             },
           },
@@ -262,8 +271,9 @@ describe("RelayClientSession", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -272,7 +282,7 @@ describe("RelayClientSession", () => {
     await session.handleMessage(
       JSON.stringify({
         type: "subscribe_trades",
-        symbols: ["AAPL"],
+        trades: [{ symbol: "AAPL" }],
       }),
     );
 

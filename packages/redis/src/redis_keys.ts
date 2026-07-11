@@ -1,4 +1,10 @@
-import { normalizeSymbol } from "@zagvar/relay-core";
+import {
+  createMarketDataRequestKey,
+  normalizeSymbol,
+  type BarsRequest,
+  type MarketDataRequest,
+  type OrderBookRequest,
+} from "@zagvar/relay-core";
 
 /** Options used to namespace Relay Redis keys. */
 export interface RelayRedisKeyOptions {
@@ -21,6 +27,18 @@ export class RelayRedisKeys {
     return `${this.#prefix}:market:latest_trades`;
   }
 
+  marketDataField(request: MarketDataRequest): string {
+    return createMarketDataRequestKey(request);
+  }
+
+  orderBookSnapshot(request: OrderBookRequest): string {
+    const symbol = encodeURIComponent(normalizeSymbol(request.symbol));
+
+    const venue = encodeURIComponent(request.venue?.trim().toUpperCase() ?? "default");
+
+    return `${this.#prefix}:market:order_book:${symbol}:${venue}`;
+  }
+
   marketSummaries(): string {
     return `${this.#prefix}:market:summaries`;
   }
@@ -29,8 +47,11 @@ export class RelayRedisKeys {
     return `${this.#prefix}:market:clock`;
   }
 
-  bars(symbol: string, timeframe: string): string {
-    return `${this.#prefix}:market:bars:${normalizeSymbol(symbol)}:${timeframe}`;
+  bars(request: BarsRequest): string {
+    const identity = encodeURIComponent(createMarketDataRequestKey(request));
+    const timeframe = encodeURIComponent(request.timeframe);
+
+    return `${this.#prefix}:market:bars:${identity}:${timeframe}`;
   }
 
   eventChannel(channel: string): string {

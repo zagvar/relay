@@ -1,25 +1,34 @@
 import type {
+  BarsRequest,
   MarketBar,
   MarketClock,
+  MarketDataRequest,
   MarketQuote,
   MarketSummary,
   MarketTrade,
 } from "./market_data.js";
-import { normalizeSymbol } from "./symbols.js";
+import type { OrderBookRequest, OrderBookSnapshot } from "./order_book.js";
+import { createMarketDataRequestKey, normalizeSymbol } from "./symbols.js";
 
 /** Provider-neutral cache contract for latest market data. */
 export interface MarketDataCache {
   /** Stores the latest quote for a symbol. */
   setLatestQuote(quote: MarketQuote): Promise<void>;
 
-  /** Returns the latest quote for a symbol when available. */
-  getLatestQuote(symbol: string): Promise<MarketQuote | undefined>;
+  /** Returns the latest quote for a symbol and optional venue when available. */
+  getLatestQuote(request: MarketDataRequest): Promise<MarketQuote | undefined>;
 
   /** Stores the latest trade for a symbol. */
   setLatestTrade(trade: MarketTrade): Promise<void>;
 
-  /** Returns the latest trade for a symbol when available. */
-  getLatestTrade(symbol: string): Promise<MarketTrade | undefined>;
+  /** Returns the latest trade for a symbol and optional venue when available. */
+  getLatestTrade(request: MarketDataRequest): Promise<MarketTrade | undefined>;
+
+  /** Stores the latest complete snapshot for one order book. */
+  setOrderBookSnapshot(snapshot: OrderBookSnapshot): Promise<void>;
+
+  /** Returns the latest complete snapshot when available. */
+  getOrderBookSnapshot(request: OrderBookRequest): Promise<OrderBookSnapshot | undefined>;
 
   /** Stores latest market summaries keyed by symbol. */
   setMarketSummaries(marketSummaries: Readonly<Record<string, MarketSummary>>): Promise<void>;
@@ -36,8 +45,8 @@ export interface MarketDataCache {
   /** Appends a bar to the cached time series for its symbol and timeframe. */
   appendBar(bar: MarketBar): Promise<void>;
 
-  /** Returns cached bars for a symbol and timeframe. */
-  getBars(symbol: string, timeframe: string): Promise<readonly MarketBar[]>;
+  /** Returns cached bars for a symbol, venue, and timeframe. */
+  getBars(request: BarsRequest): Promise<readonly MarketBar[]>;
 
   /** Stores the latest market clock. */
   setMarketClock(clock: MarketClock): Promise<void>;
@@ -48,29 +57,45 @@ export interface MarketDataCache {
 
 /** In-memory cache for tests, examples, and single-process demos. */
 export class MemoryMarketDataCache implements MarketDataCache {
-  readonly #latestQuotesBySymbol = new Map<string, MarketQuote>();
-  readonly #latestTradesBySymbol = new Map<string, MarketTrade>();
+  readonly #latestQuotesByKey = new Map<string, MarketQuote>();
+  readonly #latestTradesByKey = new Map<string, MarketTrade>();
+  readonly #orderBookSnapshotsByKey = new Map<string, OrderBookSnapshot>();
   readonly #marketSummariesBySymbol = new Map<string, MarketSummary>();
   readonly #barsByKey = new Map<string, MarketBar[]>();
   #marketClock: MarketClock | undefined;
 
   setLatestQuote(quote: MarketQuote): Promise<void> {
-    this.#latestQuotesBySymbol.set(normalizeSymbol(quote.symbol), quote);
+    this.#latestQuotesByKey.set(createEventKey(quote), quote);
 
     return Promise.resolve();
   }
 
-  getLatestQuote(symbol: string): Promise<MarketQuote | undefined> {
-    return Promise.resolve(this.#latestQuotesBySymbol.get(normalizeSymbol(symbol)));
+  getLatestQuote(request: MarketDataRequest): Promise<MarketQuote | undefined> {
+    return Promise.resolve(this.#latestQuotesByKey.get(createMarketDataRequestKey(request)));
   }
 
   setLatestTrade(trade: MarketTrade): Promise<void> {
-    this.#latestTradesBySymbol.set(normalizeSymbol(trade.symbol), trade);
+    this.#latestTradesByKey.set(createEventKey(trade), trade);
     return Promise.resolve();
   }
 
-  getLatestTrade(symbol: string): Promise<MarketTrade | undefined> {
-    return Promise.resolve(this.#latestTradesBySymbol.get(normalizeSymbol(symbol)));
+  getLatestTrade(request: MarketDataRequest): Promise<MarketTrade | undefined> {
+    return Promise.resolve(this.#latestTradesByKey.get(createMarketDataRequestKey(request)));
+  }
+
+  setOrderBookSnapshot(snapshot: OrderBookSnapshot): Promise<void> {
+    const key = createOrderBookKey({
+      symbol: snapshot.symbol,
+      ...(snapshot.venue === undefined ? {} : { venue: snapshot.venue }),
+    });
+
+    this.#orderBookSnapshotsByKey.set(key, snapshot);
+
+    return Promise.resolve();
+  }
+
+  getOrderBookSnapshot(request: OrderBookRequest): Promise<OrderBookSnapshot | undefined> {
+    return Promise.resolve(this.#orderBookSnapshotsByKey.get(createOrderBookKey(request)));
   }
 
   setMarketSummaries(marketSummaries: Readonly<Record<string, MarketSummary>>): Promise<void> {
@@ -96,7 +121,7 @@ export class MemoryMarketDataCache implements MarketDataCache {
   }
 
   appendBar(bar: MarketBar): Promise<void> {
-    const key = createBarsKey(bar.symbol, bar.timeframe);
+    const key = createBarsKey(bar);
     const bars = this.#barsByKey.get(key) ?? [];
 
     bars.push(bar);
@@ -105,8 +130,8 @@ export class MemoryMarketDataCache implements MarketDataCache {
     return Promise.resolve();
   }
 
-  getBars(symbol: string, timeframe: string): Promise<readonly MarketBar[]> {
-    return Promise.resolve(this.#barsByKey.get(createBarsKey(symbol, timeframe)) ?? []);
+  getBars(request: BarsRequest): Promise<readonly MarketBar[]> {
+    return Promise.resolve(this.#barsByKey.get(createBarsKey(request)) ?? []);
   }
 
   setMarketClock(clock: MarketClock): Promise<void> {
@@ -119,6 +144,20 @@ export class MemoryMarketDataCache implements MarketDataCache {
   }
 }
 
-function createBarsKey(symbol: string, timeframe: string): string {
-  return `${normalizeSymbol(symbol)}:${timeframe}`;
+function createEventKey(event: MarketQuote | MarketTrade): string {
+  return createMarketDataRequestKey({
+    symbol: event.symbol,
+    ...(event.venue === undefined ? {} : { venue: event.venue }),
+  });
+}
+
+function createOrderBookKey(request: OrderBookRequest): string {
+  return createMarketDataRequestKey(request);
+}
+
+function createBarsKey(request: BarsRequest): string {
+  return JSON.stringify([
+    createMarketDataRequestKey(request),
+    request.timeframe,
+  ]);
 }

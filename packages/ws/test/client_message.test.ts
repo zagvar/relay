@@ -35,12 +35,12 @@ describe("parseRelayClientMessage", () => {
       parseRelayClientMessage(
         JSON.stringify({
           type: "subscribe_quotes",
-          symbols: ["AAPL", "MSFT"],
+          quotes: [{ symbol: "AAPL" }, { symbol: "MSFT", venue: "NASDAQ" }],
         }),
       ),
     ).toEqual({
       type: "subscribe_quotes",
-      symbols: ["AAPL", "MSFT"],
+      quotes: [{ symbol: "AAPL" }, { symbol: "MSFT", venue: "NASDAQ" }],
     });
   });
 
@@ -49,12 +49,12 @@ describe("parseRelayClientMessage", () => {
       parseRelayClientMessage(
         JSON.stringify({
           type: "subscribe_trades",
-          symbols: ["AAPL", "MSFT"],
+          trades: [{ symbol: "AAPL" }, { symbol: "MSFT", venue: "NASDAQ" }],
         }),
       ),
     ).toEqual({
       type: "subscribe_trades",
-      symbols: ["AAPL", "MSFT"],
+      trades: [{ symbol: "AAPL" }, { symbol: "MSFT", venue: "NASDAQ" }],
     });
   });
 
@@ -80,7 +80,7 @@ describe("parseRelayClientMessage", () => {
           request: {
             symbols: ["AAPL"],
             includeMarketSummaries: true,
-            includeLatestQuotes: true,
+            quotes: [{ symbol: "AAPL" }],
           },
         }),
       ),
@@ -89,7 +89,7 @@ describe("parseRelayClientMessage", () => {
       request: {
         symbols: ["AAPL"],
         includeMarketSummaries: true,
-        includeLatestQuotes: true,
+        quotes: [{ symbol: "AAPL" }],
       },
     });
   });

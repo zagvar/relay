@@ -9,6 +9,28 @@ import type {
   MarketSummary,
   MarketTrade,
 } from "./market_data.js";
+import type { OrderBookSnapshot, OrderBookUpdate } from "./order_book.js";
+
+import { applyOrderBookUpdate, type OrderBookUpdateFailure } from "./order_book_reducer.js";
+
+export type OrderBookPipelineErrorCode = "snapshot_missing" | OrderBookUpdateFailure;
+
+/**
+ * Indicates that an order-book event could not be safely reconciled.
+ *
+ * Applications should fetch a fresh provider snapshot before accepting more
+ * incremental updates for this book.
+ */
+export class OrderBookPipelineError extends Error {
+  readonly code: OrderBookPipelineErrorCode;
+
+  constructor(code: OrderBookPipelineErrorCode) {
+    super(`Order-book pipeline failed: ${code}.`);
+
+    this.name = "OrderBookPipelineError";
+    this.code = code;
+  }
+}
 
 /** Runtime dependencies needed to process normalized market events. */
 export interface MarketDataPipelineOptions {
@@ -32,11 +54,21 @@ export class MarketDataPipeline {
       case "quote":
         await this.#processQuote(event);
         return;
+
       case "trade":
         await this.#processTrade(event);
         return;
+
       case "bar":
         await this.#processBar(event);
+        return;
+
+      case "order_book_snapshot":
+        await this.#processOrderBookSnapshot(event);
+        return;
+
+      case "order_book_update":
+        await this.#processOrderBookUpdate(event);
         return;
     }
   }
@@ -82,5 +114,32 @@ export class MarketDataPipeline {
   async #processBar(bar: MarketBar): Promise<void> {
     await this.#cache.appendBar(bar);
     await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.bar, bar));
+  }
+
+  async #processOrderBookSnapshot(snapshot: OrderBookSnapshot): Promise<void> {
+    await this.#cache.setOrderBookSnapshot(snapshot);
+
+    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.orderBook, snapshot));
+  }
+
+  async #processOrderBookUpdate(update: OrderBookUpdate): Promise<void> {
+    const snapshot = await this.#cache.getOrderBookSnapshot({
+      symbol: update.symbol,
+      ...(update.venue === undefined ? {} : { venue: update.venue }),
+    });
+
+    if (snapshot === undefined) {
+      throw new OrderBookPipelineError("snapshot_missing");
+    }
+
+    const result = applyOrderBookUpdate(snapshot, update);
+
+    if (!result.applied) {
+      throw new OrderBookPipelineError(result.reason);
+    }
+
+    await this.#cache.setOrderBookSnapshot(result.snapshot);
+
+    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.orderBook, update));
   }
 }

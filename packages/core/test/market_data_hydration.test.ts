@@ -8,14 +8,15 @@ import type {
   MarketSummary,
   MarketTrade,
 } from "../src/market_data.js";
+import type { OrderBookSnapshot } from "../src/order_book.js";
 
 describe("MarketDataHydrator", () => {
   it("hydrates marketSummaries for selected symbols", async () => {
     const cache = new MemoryMarketDataCache();
     const hydrator = new MarketDataHydrator(cache);
     const marketSummaries: Record<string, MarketSummary> = {
-      AAPL: { symbol: "AAPL", price: 195.12 },
-      MSFT: { symbol: "MSFT", price: 420.5 },
+      AAPL: { symbol: "AAPL", assetClass: "equity", price: 195.12 },
+      MSFT: { symbol: "MSFT", assetClass: "equity", price: 420.5 },
     };
 
     await cache.setMarketSummaries(marketSummaries);
@@ -38,10 +39,11 @@ describe("MarketDataHydrator", () => {
     const quote: MarketQuote = {
       type: "quote",
       symbol: "AAPL",
+      assetClass: "equity",
       bidPrice: 195.1,
-      bidSize: 200,
+      bidQuantity: 200,
       askPrice: 195.12,
-      askSize: 100,
+      askQuantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -49,13 +51,10 @@ describe("MarketDataHydrator", () => {
 
     await expect(
       hydrator.hydrate({
-        symbols: ["aapl"],
-        includeLatestQuotes: true,
+        quotes: [{ symbol: "aapl" }],
       }),
     ).resolves.toEqual({
-      latestQuotes: {
-        AAPL: quote,
-      },
+      latestQuotes: [quote],
     });
   });
 
@@ -65,8 +64,9 @@ describe("MarketDataHydrator", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -74,13 +74,10 @@ describe("MarketDataHydrator", () => {
 
     await expect(
       hydrator.hydrate({
-        symbols: ["aapl", "msft"],
-        includeLatestTrades: true,
+        trades: [{ symbol: "aapl" }, { symbol: "msft" }],
       }),
     ).resolves.toEqual({
-      latestTrades: {
-        AAPL: trade,
-      },
+      latestTrades: [trade],
     });
   });
 
@@ -90,6 +87,7 @@ describe("MarketDataHydrator", () => {
     const bar: MarketBar = {
       type: "bar",
       symbol: "AAPL",
+      assetClass: "equity",
       timeframe: "1Min",
       open: 190,
       high: 196,
@@ -106,9 +104,56 @@ describe("MarketDataHydrator", () => {
         bars: [{ symbol: "aapl", timeframe: "1Min" }],
       }),
     ).resolves.toEqual({
-      bars: {
-        "AAPL:1Min": [bar],
-      },
+      bars: [bar],
+    });
+  });
+
+  it("hydrates available venue-specific order books", async () => {
+    const cache = new MemoryMarketDataCache();
+    const hydrator = new MarketDataHydrator(cache);
+    const snapshot: OrderBookSnapshot = {
+      type: "order_book_snapshot",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bids: [{ price: 65_000, quantity: 1.25 }],
+      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      timestamp: "2026-01-01T14:30:00.000Z",
+      sequence: 100,
+    };
+
+    await cache.setOrderBookSnapshot(snapshot);
+
+    await expect(
+      hydrator.hydrate({
+        orderBooks: [
+          {
+            symbol: "btc/usdt",
+            venue: "coinbase",
+          },
+          {
+            symbol: "ETH/USDT",
+            venue: "COINBASE",
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      orderBookSnapshots: [snapshot],
+    });
+  });
+
+  it("returns an empty order-book list when none are requested", async () => {
+    const cache = new MemoryMarketDataCache();
+    const hydrator = new MarketDataHydrator(cache);
+
+    await expect(
+      hydrator.hydrate({
+        orderBooks: [],
+      }),
+    ).resolves.toEqual({
+      orderBookSnapshots: [],
     });
   });
 

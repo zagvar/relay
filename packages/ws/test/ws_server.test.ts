@@ -55,7 +55,7 @@ describe("attachRelayNodeWsConnection", () => {
     websocket.receiveText(
       JSON.stringify({
         type: "subscribe_trades",
-        symbols: ["AAPL"],
+        trades: [{ symbol: "AAPL" }],
       }),
     );
     await waitForMessageHandling();
@@ -63,8 +63,9 @@ describe("attachRelayNodeWsConnection", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 

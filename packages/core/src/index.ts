@@ -1,33 +1,42 @@
+// Market data contracts
 export type {
   AssetClass,
   BarsRequest,
   MarketBar,
   MarketClock,
   MarketEvent,
-  MarketInstrument,
+  MarketDataRequest,
+  MarketIdentity,
   MarketQuote,
   MarketSummary,
   MarketTrade,
 } from "./market_data.js";
 
+// Order-book contracts and reconciliation
+export type {
+  OrderBookEvent,
+  OrderBookLevel,
+  OrderBookRequest,
+  OrderBookSnapshot,
+  OrderBookUpdate,
+  OrderBookUpdateLevel,
+} from "./order_book.js";
+
+export { applyOrderBookUpdate } from "./order_book_reducer.js";
+
+export type {
+  ApplyOrderBookUpdateOptions,
+  OrderBookUpdateFailure,
+  OrderBookUpdateResult,
+} from "./order_book_reducer.js";
+
+// Provider contracts and capabilities
 export type {
   LiveConnectionOptions,
   LiveMarketConnection,
   MarketDataProvider,
   MarketEventHandler,
 } from "./provider.js";
-
-export { chunkSymbols, normalizeSymbol } from "./symbols.js";
-
-export { MARKET_EVENT_CHANNEL, createRelayMessage } from "./event_channel.js";
-
-export type { MarketEventChannel, RelayMessage } from "./event_channel.js";
-
-export { calculateReconnectDelay } from "./reconnect.js";
-
-export type { ReconnectBackoffOptions } from "./reconnect.js";
-
-export { EventThrottle } from "./throttle.js";
 
 export {
   PROVIDER_CAPABILITY,
@@ -37,17 +46,23 @@ export {
 
 export type { ProviderCapabilities, ProviderCapability } from "./provider_capability.js";
 
+// Events and subscriptions
+export { MARKET_EVENT_CHANNEL, createRelayMessage } from "./event_channel.js";
+
+export type { MarketEventChannel, RelayMessage } from "./event_channel.js";
+
 export { MemoryRelayEventBus } from "./event_bus.js";
 
 export type { RelayEventBus, RelayMessageHandler, Unsubscribe } from "./event_bus.js";
 
+export { MarketDataSubscriptionState, createBarSubscriptionKey } from "./subscription.js";
+
+export type { BarSubscription } from "./subscription.js";
+
+// Cache, hydration, and processing
 export { MemoryMarketDataCache } from "./market_data_cache.js";
 
 export type { MarketDataCache } from "./market_data_cache.js";
-
-export { MarketDataPipeline } from "./market_data_pipeline.js";
-
-export type { MarketDataPipelineOptions } from "./market_data_pipeline.js";
 
 export { MarketDataHydrator } from "./market_data_hydration.js";
 
@@ -57,9 +72,12 @@ export type {
   MarketDataHydrationRequest,
 } from "./market_data_hydration.js";
 
-export { MarketDataSubscriptionState, createBarSubscriptionKey } from "./subscription.js";
+export { MarketDataPipeline, OrderBookPipelineError } from "./market_data_pipeline.js";
 
-export type { BarSubscription } from "./subscription.js";
+export type {
+  MarketDataPipelineOptions,
+  OrderBookPipelineErrorCode,
+} from "./market_data_pipeline.js";
 
 export { MarketSummaryConflator } from "./market_summary_conflator.js";
 
@@ -67,3 +85,17 @@ export type {
   MarketSummaryBatchHandler,
   MarketSummaryConflatorOptions,
 } from "./market_summary_conflator.js";
+
+// Utilities
+export {
+  chunkSymbols,
+  createMarketDataRequestKey,
+  normalizeSymbol,
+  normalizeVenue,
+} from "./symbols.js";
+
+export { calculateReconnectDelay } from "./reconnect.js";
+
+export type { ReconnectBackoffOptions } from "./reconnect.js";
+
+export { EventThrottle } from "./throttle.js";

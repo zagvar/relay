@@ -7,6 +7,7 @@ import type {
   MarketQuote,
   MarketSummary,
   MarketTrade,
+  OrderBookSnapshot,
 } from "@zagvar/relay-core";
 
 describe("RedisMarketDataCache", () => {
@@ -16,16 +17,17 @@ describe("RedisMarketDataCache", () => {
     const quote: MarketQuote = {
       type: "quote",
       symbol: "AAPL",
+      assetClass: "equity",
       bidPrice: 195.1,
-      bidSize: 200,
+      bidQuantity: 200,
       askPrice: 195.12,
-      askSize: 100,
+      askQuantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     await cache.setLatestQuote(quote);
 
-    await expect(cache.getLatestQuote("aapl")).resolves.toEqual(quote);
+    await expect(cache.getLatestQuote({ symbol: "aapl" })).resolves.toEqual(quote);
   });
 
   it("stores and returns latest trades", async () => {
@@ -34,14 +36,98 @@ describe("RedisMarketDataCache", () => {
     const trade: MarketTrade = {
       type: "trade",
       symbol: "aapl",
+      assetClass: "equity",
       price: 195.12,
-      size: 100,
+      quantity: 100,
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     await cache.setLatestTrade(trade);
 
-    expect(await cache.getLatestTrade("AAPL")).toEqual(trade);
+    expect(await cache.getLatestTrade({ symbol: "AAPL" })).toEqual(trade);
+  });
+
+  it("keeps Redis quotes and trades isolated by venue", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+    const coinbaseQuote: MarketQuote = {
+      type: "quote",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      bidPrice: 65_000,
+      bidQuantity: 1,
+      askPrice: 65_001,
+      askQuantity: 1,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.setLatestQuote(coinbaseQuote);
+
+    await expect(
+      cache.getLatestQuote({ symbol: "btc/usdt", venue: "coinbase" }),
+    ).resolves.toEqual(coinbaseQuote);
+    await expect(
+      cache.getLatestQuote({ symbol: "BTC/USDT", venue: "BINANCE" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("stores and returns a venue-specific order-book snapshot", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+    const snapshot: OrderBookSnapshot = {
+      type: "order_book_snapshot",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bids: [{ price: 65_000, quantity: 1.25 }],
+      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      timestamp: "2026-01-01T14:30:00.000Z",
+      sequence: 100,
+    };
+
+    await cache.setOrderBookSnapshot(snapshot);
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "btc/usdt",
+        venue: "coinbase",
+      }),
+    ).resolves.toEqual(snapshot);
+  });
+
+  it("keeps Redis order books isolated by venue", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+    const snapshot: OrderBookSnapshot = {
+      type: "order_book_snapshot",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bids: [{ price: 65_000, quantity: 1.25 }],
+      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      timestamp: "2026-01-01T14:30:00.000Z",
+      sequence: 100,
+    };
+
+    await cache.setOrderBookSnapshot(snapshot);
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "BTC/USDT",
+        venue: "BINANCE",
+      }),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      cache.getOrderBookSnapshot({
+        symbol: "BTC/USDT",
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it("stores and returns one market summary", async () => {
@@ -49,6 +135,7 @@ describe("RedisMarketDataCache", () => {
     const cache = new RedisMarketDataCache({ client });
     const marketSummary: MarketSummary = {
       symbol: "AAPL",
+      assetClass: "equity",
       price: 195.12,
     };
 
@@ -63,6 +150,7 @@ describe("RedisMarketDataCache", () => {
     const marketSummaries: Record<string, MarketSummary> = {
       aapl: {
         symbol: "aapl",
+        assetClass: "equity",
         price: 195.12,
       },
     };
@@ -84,6 +172,7 @@ describe("RedisMarketDataCache", () => {
     await cache.setMarketSummaries({
       AAPL: {
         symbol: "AAPL",
+        assetClass: "equity",
         price: 195.12,
       },
     });
@@ -99,6 +188,7 @@ describe("RedisMarketDataCache", () => {
     const firstBar: MarketBar = {
       type: "bar",
       symbol: "AAPL",
+      assetClass: "equity",
       timeframe: "1Min",
       open: 190,
       high: 196,
@@ -116,7 +206,10 @@ describe("RedisMarketDataCache", () => {
     await cache.appendBar(firstBar);
     await cache.appendBar(secondBar);
 
-    expect(await cache.getBars("aapl", "1Min")).toEqual([secondBar, firstBar]);
+    expect(await cache.getBars({ symbol: "aapl", timeframe: "1Min" })).toEqual([
+      secondBar,
+      firstBar,
+    ]);
   });
 
   it("stores and returns market clock", async () => {
@@ -163,6 +256,7 @@ describe("RedisMarketDataCache", () => {
     const createBar = (timestamp: string): MarketBar => ({
       type: "bar",
       symbol: "AAPL",
+      assetClass: "equity",
       timeframe: "1Min",
       open: 190,
       high: 196,
@@ -180,7 +274,10 @@ describe("RedisMarketDataCache", () => {
     await cache.appendBar(secondBar);
     await cache.appendBar(thirdBar);
 
-    expect(await cache.getBars("AAPL", "1Min")).toEqual([secondBar, thirdBar]);
+    expect(await cache.getBars({ symbol: "AAPL", timeframe: "1Min" })).toEqual([
+      secondBar,
+      thirdBar,
+    ]);
   });
 
   it("expires bars using timeframe-specific ttl", async () => {
@@ -197,6 +294,7 @@ describe("RedisMarketDataCache", () => {
     const bar: MarketBar = {
       type: "bar",
       symbol: "AAPL",
+      assetClass: "equity",
       timeframe: "1Min",
       open: 190,
       high: 196,
@@ -210,7 +308,7 @@ describe("RedisMarketDataCache", () => {
 
     client.advanceTime(5_000);
 
-    expect(await cache.getBars("AAPL", "1Min")).toEqual([]);
+    expect(await cache.getBars({ symbol: "AAPL", timeframe: "1Min" })).toEqual([]);
   });
 
   it("uses default bar retention when timeframe override is missing", async () => {
@@ -225,6 +323,7 @@ describe("RedisMarketDataCache", () => {
     const firstBar: MarketBar = {
       type: "bar",
       symbol: "AAPL",
+      assetClass: "equity",
       timeframe: "5Min",
       open: 190,
       high: 196,
@@ -242,6 +341,6 @@ describe("RedisMarketDataCache", () => {
     await cache.appendBar(firstBar);
     await cache.appendBar(secondBar);
 
-    expect(await cache.getBars("AAPL", "5Min")).toEqual([secondBar]);
+    expect(await cache.getBars({ symbol: "AAPL", timeframe: "5Min" })).toEqual([secondBar]);
   });
 });
