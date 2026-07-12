@@ -1,26 +1,77 @@
 # @zagvar/relay-redis
 
-Redis-backed implementations for Relay.
+Redis-backed implementations of Relay's market-data cache and event bus
+contracts.
 
-This package will provide Redis implementations of Relay cache and event bus contracts.
+## Cache
 
-## Cache Model
+`RedisMarketDataCache` stores:
 
-`@zagvar/relay-redis` is intended for hot market data caching, not durable historical storage.
-
-Redis is a good fit for:
-
-- latest trades
+- latest quotes and trades
 - latest market summaries
-- current market clock
 - recent bar series
-- pub/sub fan-out
+- latest complete order-book snapshots
+- the latest market clock
 
-Longer chart history should usually come from a provider API, database, object storage, or a dedicated historical bar store. Applications can use Redis for fast recent reads and fall back to their own historical source when more data is needed.
+```ts
+import { RedisMarketDataCache } from "@zagvar/relay-redis";
+
+const cache = new RedisMarketDataCache({
+  client: redisClient,
+  prefix: "my-app",
+  marketSummaryTtlSeconds: 30,
+  marketClockTtlSeconds: 60,
+  barRetention: {
+    default: { maxBars: 500, ttlSeconds: 86_400 },
+    byTimeframe: {
+      "1d": { maxBars: 365, ttlSeconds: 2_592_000 },
+    },
+  },
+});
+```
+
+The client must implement Relay's small `RedisCacheClient` interface, allowing
+applications to adapt their preferred Redis library.
+
+## Venue-Aware Keys
+
+Quotes and trades are stored in Redis hashes whose fields identify both symbol
+and optional venue. Bars additionally include their timeframe. Each order-book
+snapshot has its own symbol-and-venue key.
+
+```ts
+await cache.getLatestQuote({ symbol: "BTC/USD", venue: "COINBASE" });
+await cache.getBars({
+  symbol: "BTC/USD",
+  venue: "COINBASE",
+  timeframe: "1m",
+});
+await cache.getOrderBookSnapshot({ symbol: "BTC/USD", venue: "COINBASE" });
+```
+
+Symbols and venues are normalized when keys are created. An omitted venue maps
+to a distinct default stream rather than matching every venue.
+
+## Bar Retention
+
+Bars use Redis sorted sets scored by timestamp. `maxBars` trims old entries and
+`ttlSeconds` expires an inactive series. Timeframe-specific settings override the
+default retention policy.
+
+Redis is intended as a hot cache, not a durable historical store. Longer history
+should generally come from a provider API, database, object storage, or dedicated
+time-series system.
+
+## Event Bus
+
+`RedisRelayEventBus` implements Relay pub/sub using namespaced event channels.
+It is suitable for distributing normalized Relay messages between application
+processes before they are filtered and forwarded to clients.
 
 ## Status
 
-Under active development. Not ready for production use.
+Under active development. The public API may change before the first stable
+release.
 
 ## License
 
