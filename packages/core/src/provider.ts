@@ -2,9 +2,11 @@ import type {
   BarsRequest,
   MarketBar,
   MarketClock,
+  MarketDataRequest,
   MarketEvent,
   MarketSummary,
 } from "./market_data.js";
+import type { OrderBookSnapshot } from "./order_book.js";
 import type { ProviderCapabilities } from "./provider_capability.js";
 
 /** Receives normalized live market events from a provider connection. */
@@ -39,6 +41,11 @@ export interface MarketDataProvider {
 
   /** Returns historical bars for a symbol and timeframe. */
   getBars(request: BarsRequest): Promise<readonly MarketBar[]>;
+
+  /**
+   * Returns a complete order-book snapshot when supported.
+   */
+  getOrderBookSnapshot?(request: MarketDataRequest): Promise<OrderBookSnapshot>;
 
   /** Returns market clock data when supported by the provider. */
   getMarketClock?(): Promise<MarketClock>;

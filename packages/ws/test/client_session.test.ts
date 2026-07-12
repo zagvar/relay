@@ -419,6 +419,60 @@ describe("RelayClientSession", () => {
     ]);
   });
 
+  it("sends cached venue-specific order books during hydration", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const cache = new MemoryMarketDataCache();
+    const hydrator = new MarketDataHydrator(cache);
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+      hydrator,
+    });
+
+    const coinbaseSnapshot: OrderBookSnapshot = {
+      type: "order_book_snapshot",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bids: [{ price: 65_000, quantity: 1.25 }],
+      asks: [{ price: 65_001, quantity: 0.8 }],
+      timestamp: "2026-01-01T14:30:00.000Z",
+      sequence: 100,
+    };
+
+    await cache.setOrderBookSnapshot(coinbaseSnapshot);
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "hydrate",
+        request: {
+          orderBooks: [
+            {
+              symbol: "BTC/USDT",
+              venue: "COINBASE",
+            },
+            {
+              symbol: "BTC/USDT",
+              venue: "BINANCE",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(socket.sentPayloads).toEqual([
+      {
+        type: "hydration",
+        data: {
+          orderBookSnapshots: [coinbaseSnapshot],
+        },
+      },
+    ]);
+  });
+
   it("stops forwarding after close", async () => {
     const socket = new FakeSocket();
     const eventBus = new MemoryRelayEventBus();
