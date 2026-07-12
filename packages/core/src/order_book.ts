@@ -1,4 +1,4 @@
-import type { MarketDataRequest, MarketIdentity } from "./market_data.js";
+import type { MarketIdentity } from "./market_data.js";
 
 /**
  * One aggregated order-book price level.
@@ -22,14 +22,6 @@ export interface OrderBookUpdateLevel {
   readonly quantity: number;
   readonly orderCount?: number;
 }
-
-/**
- * Identifies one venue-specific order book.
- *
- * `venue` may be omitted when the application intentionally maintains one
- * consolidated or provider-default book for the symbol.
- */
-export type OrderBookRequest = MarketDataRequest;
 
 /**
  * A complete provider-neutral order-book state.

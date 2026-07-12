@@ -58,6 +58,78 @@ describe("parseRelayClientMessage", () => {
     });
   });
 
+  it("parses venue-aware order-book subscriptions", () => {
+    expect(
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "subscribe_order_books",
+          orderBooks: [
+            {
+              symbol: "BTC/USDT",
+              venue: "COINBASE",
+            },
+            {
+              symbol: "BTC/USDT",
+              venue: "BINANCE",
+            },
+          ],
+        }),
+      ),
+    ).toEqual({
+      type: "subscribe_order_books",
+      orderBooks: [
+        {
+          symbol: "BTC/USDT",
+          venue: "COINBASE",
+        },
+        {
+          symbol: "BTC/USDT",
+          venue: "BINANCE",
+        },
+      ],
+    });
+  });
+
+  it("parses order-book unsubscriptions", () => {
+    expect(
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "unsubscribe_order_books",
+          orderBooks: [
+            {
+              symbol: "BTC/USDT",
+              venue: "COINBASE",
+            },
+          ],
+        }),
+      ),
+    ).toEqual({
+      type: "unsubscribe_order_books",
+      orderBooks: [
+        {
+          symbol: "BTC/USDT",
+          venue: "COINBASE",
+        },
+      ],
+    });
+  });
+
+  it("rejects invalid order-book requests", () => {
+    expect(() =>
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "subscribe_order_books",
+          orderBooks: [
+            {
+              symbol: "BTC/USDT",
+              venue: 123,
+            },
+          ],
+        }),
+      ),
+    ).toThrow("Client message orderBooks must be an array of order-book requests.");
+  });
+
   it("parses bar subscriptions", () => {
     expect(
       parseRelayClientMessage(

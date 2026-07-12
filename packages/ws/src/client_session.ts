@@ -44,6 +44,9 @@ export class RelayClientSession {
       await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.bar, (message) =>
         this.#forwardMessage(message),
       ),
+      await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.orderBook, (message) =>
+        this.#forwardMessage(message),
+      ),
       await this.#eventBus.subscribe(MARKET_EVENT_CHANNEL.marketSummary, (message) =>
         this.#forwardMessage(message),
       ),
@@ -72,39 +75,57 @@ export class RelayClientSession {
           this.#subscriptions.subscribeChannel(channel);
         }
         return;
+
       case "unsubscribe_channels":
         for (const channel of message.channels) {
           this.#subscriptions.unsubscribeChannel(channel);
         }
         return;
+
       case "subscribe_market_summaries":
         this.#subscriptions.subscribeMarketSummaries(message.symbols);
         return;
+
       case "unsubscribe_market_summaries":
         this.#subscriptions.unsubscribeMarketSummaries(message.symbols);
         return;
+
       case "subscribe_quotes":
         this.#subscriptions.subscribeQuotes(message.quotes);
         return;
+
       case "unsubscribe_quotes":
         this.#subscriptions.unsubscribeQuotes(message.quotes);
         return;
+
       case "subscribe_trades":
         this.#subscriptions.subscribeTrades(message.trades);
         return;
+
       case "unsubscribe_trades":
         this.#subscriptions.unsubscribeTrades(message.trades);
         return;
+
+      case "subscribe_order_books":
+        this.#subscriptions.subscribeOrderBooks(message.orderBooks);
+        return;
+
+      case "unsubscribe_order_books":
+        this.#subscriptions.unsubscribeOrderBooks(message.orderBooks);
+        return;
+
       case "subscribe_bars":
         for (const bar of message.bars) {
           this.#subscriptions.subscribeBars(bar);
         }
         return;
+
       case "unsubscribe_bars":
         for (const bar of message.bars) {
           this.#subscriptions.unsubscribeBars(bar);
         }
         return;
+
       case "hydrate":
         if (this.#hydrator === undefined) {
           throw new Error("Hydration is not configured for this session.");
@@ -142,6 +163,10 @@ export class RelayClientSession {
       return this.#shouldForwardTrade(message.data);
     }
 
+    if (message.channel === MARKET_EVENT_CHANNEL.orderBook) {
+      return this.#shouldForwardOrderBook(message.data);
+    }
+
     if (message.channel === MARKET_EVENT_CHANNEL.bar) {
       return this.#shouldForwardBar(message.data);
     }
@@ -163,6 +188,10 @@ export class RelayClientSession {
     return isTradeEventData(data) && this.#subscriptions.hasTradeSubscription(data);
   }
 
+  #shouldForwardOrderBook(data: unknown): boolean {
+    return isOrderBookEventData(data) && this.#subscriptions.hasOrderBookSubscription(data);
+  }
+
   #shouldForwardBar(data: unknown): boolean {
     return isBarEventData(data) && this.#subscriptions.hasBarSubscription(data);
   }
@@ -180,6 +209,12 @@ interface QuoteEventData {
 
 interface TradeEventData {
   readonly type: "trade";
+  readonly symbol: string;
+  readonly venue?: string;
+}
+
+interface OrderBookEventData {
+  readonly type: "order_book_snapshot" | "order_book_update";
   readonly symbol: string;
   readonly venue?: string;
 }
@@ -205,6 +240,15 @@ function isTradeEventData(value: unknown): value is TradeEventData {
   return (
     isRecord(value) &&
     value.type === "trade" &&
+    typeof value.symbol === "string" &&
+    (value.venue === undefined || typeof value.venue === "string")
+  );
+}
+
+function isOrderBookEventData(value: unknown): value is OrderBookEventData {
+  return (
+    isRecord(value) &&
+    (value.type === "order_book_snapshot" || value.type === "order_book_update") &&
     typeof value.symbol === "string" &&
     (value.venue === undefined || typeof value.venue === "string")
   );

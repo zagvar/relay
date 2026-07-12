@@ -7,7 +7,7 @@ import type {
   MarketSummary,
   MarketTrade,
 } from "./market_data.js";
-import type { OrderBookRequest, OrderBookSnapshot } from "./order_book.js";
+import type { OrderBookSnapshot } from "./order_book.js";
 import { createMarketDataRequestKey, normalizeSymbol } from "./symbols.js";
 
 /** Provider-neutral cache contract for latest market data. */
@@ -28,7 +28,7 @@ export interface MarketDataCache {
   setOrderBookSnapshot(snapshot: OrderBookSnapshot): Promise<void>;
 
   /** Returns the latest complete snapshot when available. */
-  getOrderBookSnapshot(request: OrderBookRequest): Promise<OrderBookSnapshot | undefined>;
+  getOrderBookSnapshot(request: MarketDataRequest): Promise<OrderBookSnapshot | undefined>;
 
   /** Stores latest market summaries keyed by symbol. */
   setMarketSummaries(marketSummaries: Readonly<Record<string, MarketSummary>>): Promise<void>;
@@ -94,7 +94,7 @@ export class MemoryMarketDataCache implements MarketDataCache {
     return Promise.resolve();
   }
 
-  getOrderBookSnapshot(request: OrderBookRequest): Promise<OrderBookSnapshot | undefined> {
+  getOrderBookSnapshot(request: MarketDataRequest): Promise<OrderBookSnapshot | undefined> {
     return Promise.resolve(this.#orderBookSnapshotsByKey.get(createOrderBookKey(request)));
   }
 
@@ -151,13 +151,10 @@ function createEventKey(event: MarketQuote | MarketTrade): string {
   });
 }
 
-function createOrderBookKey(request: OrderBookRequest): string {
+function createOrderBookKey(request: MarketDataRequest): string {
   return createMarketDataRequestKey(request);
 }
 
 function createBarsKey(request: BarsRequest): string {
-  return JSON.stringify([
-    createMarketDataRequestKey(request),
-    request.timeframe,
-  ]);
+  return JSON.stringify([createMarketDataRequestKey(request), request.timeframe]);
 }

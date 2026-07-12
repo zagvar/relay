@@ -64,9 +64,9 @@ describe("RedisMarketDataCache", () => {
 
     await cache.setLatestQuote(coinbaseQuote);
 
-    await expect(
-      cache.getLatestQuote({ symbol: "btc/usdt", venue: "coinbase" }),
-    ).resolves.toEqual(coinbaseQuote);
+    await expect(cache.getLatestQuote({ symbol: "btc/usdt", venue: "coinbase" })).resolves.toEqual(
+      coinbaseQuote,
+    );
     await expect(
       cache.getLatestQuote({ symbol: "BTC/USDT", venue: "BINANCE" }),
     ).resolves.toBeUndefined();
@@ -210,6 +210,61 @@ describe("RedisMarketDataCache", () => {
       secondBar,
       firstBar,
     ]);
+  });
+
+  it("keeps Redis bars isolated by venue", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+
+    const coinbaseBar: MarketBar = {
+      type: "bar",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      timeframe: "1Min",
+      open: 65_000,
+      high: 65_100,
+      low: 64_950,
+      close: 65_050,
+      volume: 12.5,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const binanceBar: MarketBar = {
+      ...coinbaseBar,
+      venue: "BINANCE",
+      high: 65_120,
+      close: 65_075,
+      volume: 18.25,
+    };
+
+    await cache.appendBar(coinbaseBar);
+    await cache.appendBar(binanceBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "btc/usdt",
+        venue: "coinbase",
+        timeframe: "1Min",
+      }),
+    ).resolves.toEqual([coinbaseBar]);
+
+    await expect(
+      cache.getBars({
+        symbol: "BTC/USDT",
+        venue: "BINANCE",
+        timeframe: "1Min",
+      }),
+    ).resolves.toEqual([binanceBar]);
+
+    await expect(
+      cache.getBars({
+        symbol: "BTC/USDT",
+        timeframe: "1Min",
+      }),
+    ).resolves.toEqual([]);
   });
 
   it("stores and returns market clock", async () => {

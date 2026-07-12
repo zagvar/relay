@@ -108,6 +108,109 @@ describe("MarketDataHydrator", () => {
     });
   });
 
+  it("hydrates quotes, trades, and bars for requested venues", async () => {
+    const cache = new MemoryMarketDataCache();
+    const hydrator = new MarketDataHydrator(cache);
+
+    const coinbaseQuote: MarketQuote = {
+      type: "quote",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bidPrice: 65_000,
+      bidQuantity: 1.2,
+      askPrice: 65_001,
+      askQuantity: 0.8,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const binanceQuote: MarketQuote = {
+      ...coinbaseQuote,
+      venue: "BINANCE",
+      bidPrice: 65_002,
+      askPrice: 65_003,
+    };
+
+    const coinbaseTrade: MarketTrade = {
+      type: "trade",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      price: 65_000.5,
+      quantity: 0.1,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const binanceTrade: MarketTrade = {
+      ...coinbaseTrade,
+      venue: "BINANCE",
+      price: 65_002.5,
+    };
+
+    const coinbaseBar: MarketBar = {
+      type: "bar",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      timeframe: "1Min",
+      open: 65_000,
+      high: 65_100,
+      low: 64_950,
+      close: 65_050,
+      volume: 12.5,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const binanceBar: MarketBar = {
+      ...coinbaseBar,
+      venue: "BINANCE",
+      high: 65_120,
+      close: 65_075,
+      volume: 18.25,
+    };
+
+    await cache.setLatestQuote(coinbaseQuote);
+    await cache.setLatestQuote(binanceQuote);
+    await cache.setLatestTrade(coinbaseTrade);
+    await cache.setLatestTrade(binanceTrade);
+    await cache.appendBar(coinbaseBar);
+    await cache.appendBar(binanceBar);
+
+    await expect(
+      hydrator.hydrate({
+        quotes: [
+          {
+            symbol: "btc/usdt",
+            venue: "coinbase",
+          },
+        ],
+        trades: [
+          {
+            symbol: "BTC/USDT",
+            venue: "BINANCE",
+          },
+        ],
+        bars: [
+          {
+            symbol: "BTC/USDT",
+            venue: "COINBASE",
+            timeframe: "1Min",
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      latestQuotes: [coinbaseQuote],
+      latestTrades: [binanceTrade],
+      bars: [coinbaseBar],
+    });
+  });
+
   it("hydrates available venue-specific order books", async () => {
     const cache = new MemoryMarketDataCache();
     const hydrator = new MarketDataHydrator(cache);
@@ -173,6 +276,37 @@ describe("MarketDataHydrator", () => {
       }),
     ).resolves.toEqual({
       marketClock: clock,
+    });
+  });
+
+  it("does not treat venue-specific data as default data", async () => {
+    const cache = new MemoryMarketDataCache();
+    const hydrator = new MarketDataHydrator(cache);
+
+    const quote: MarketQuote = {
+      type: "quote",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      bidPrice: 65_000,
+      bidQuantity: 1.2,
+      askPrice: 65_001,
+      askQuantity: 0.8,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.setLatestQuote(quote);
+
+    await expect(
+      hydrator.hydrate({
+        quotes: [
+          {
+            symbol: "BTC/USDT",
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      latestQuotes: [],
     });
   });
 });

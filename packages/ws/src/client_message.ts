@@ -3,7 +3,6 @@ import type {
   MarketDataHydrationRequest,
   MarketDataRequest,
   MarketEventChannel,
-  OrderBookRequest,
 } from "@zagvar/relay-core";
 import { isRecord, isStringArray } from "./type_guards.js";
 
@@ -17,6 +16,8 @@ export type RelayClientMessage =
   | UnsubscribeQuotesMessage
   | SubscribeTradesMessage
   | UnsubscribeTradesMessage
+  | SubscribeOrderBooksMessage
+  | UnsubscribeOrderBooksMessage
   | SubscribeBarsMessage
   | UnsubscribeBarsMessage
   | HydrateMessage;
@@ -69,6 +70,18 @@ export interface UnsubscribeTradesMessage {
   readonly trades: readonly MarketDataRequest[];
 }
 
+/** Subscribes the client to venue-aware order books. */
+export interface SubscribeOrderBooksMessage {
+  readonly type: "subscribe_order_books";
+  readonly orderBooks: readonly MarketDataRequest[];
+}
+
+/** Unsubscribes the client from venue-aware order books. */
+export interface UnsubscribeOrderBooksMessage {
+  readonly type: "unsubscribe_order_books";
+  readonly orderBooks: readonly MarketDataRequest[];
+}
+
 /** Subscribes the client to live bars. */
 export interface SubscribeBarsMessage {
   readonly type: "subscribe_bars";
@@ -99,20 +112,30 @@ export function parseRelayClientMessage(rawMessage: string): RelayClientMessage 
     case "subscribe_channels":
     case "unsubscribe_channels":
       return parseChannelsMessage(parsedMessage);
+
     case "subscribe_market_summaries":
     case "unsubscribe_market_summaries":
       return parseSymbolsMessage(parsedMessage);
+
     case "subscribe_quotes":
     case "unsubscribe_quotes":
       return parseMarketDataRequestsMessage(parsedMessage, "quotes");
+
     case "subscribe_trades":
     case "unsubscribe_trades":
       return parseMarketDataRequestsMessage(parsedMessage, "trades");
+
+    case "subscribe_order_books":
+    case "unsubscribe_order_books":
+      return parseOrderBooksMessage(parsedMessage);
+
     case "subscribe_bars":
     case "unsubscribe_bars":
       return parseBarsMessage(parsedMessage);
+
     case "hydrate":
       return parseHydrateMessage(parsedMessage);
+
     default:
       throw new Error("Unsupported client message type.");
   }
@@ -139,9 +162,7 @@ function parseSymbolsMessage(
   }
 
   return {
-    type: message.type as
-      | "subscribe_market_summaries"
-      | "unsubscribe_market_summaries",
+    type: message.type as "subscribe_market_summaries" | "unsubscribe_market_summaries",
     symbols: message.symbols,
   };
 }
@@ -170,6 +191,19 @@ function parseMarketDataRequestsMessage(
   return {
     type: message.type as "subscribe_trades" | "unsubscribe_trades",
     trades: requests,
+  };
+}
+
+function parseOrderBooksMessage(
+  message: Record<string, unknown>,
+): SubscribeOrderBooksMessage | UnsubscribeOrderBooksMessage {
+  if (!Array.isArray(message.orderBooks) || !message.orderBooks.every(isMarketDataRequest)) {
+    throw new Error("Client message orderBooks must be an array of order-book requests.");
+  }
+
+  return {
+    type: message.type as "subscribe_order_books" | "unsubscribe_order_books",
+    orderBooks: message.orderBooks,
   };
 }
 
@@ -209,10 +243,6 @@ function isMarketDataRequest(value: unknown): value is MarketDataRequest {
   );
 }
 
-function isOrderBookRequest(value: unknown): value is OrderBookRequest {
-  return isMarketDataRequest(value);
-}
-
 function isMarketDataHydrationRequest(value: unknown): value is MarketDataHydrationRequest {
   if (!isRecord(value)) {
     return false;
@@ -241,7 +271,7 @@ function isMarketDataHydrationRequest(value: unknown): value is MarketDataHydrat
   }
 
   if (value.orderBooks !== undefined) {
-    if (!Array.isArray(value.orderBooks) || !value.orderBooks.every(isOrderBookRequest)) {
+    if (!Array.isArray(value.orderBooks) || !value.orderBooks.every(isMarketDataRequest)) {
       return false;
     }
   }

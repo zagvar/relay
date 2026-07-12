@@ -8,7 +8,6 @@ import type {
   MarketQuote,
   MarketSummary,
   MarketTrade,
-  OrderBookRequest,
   OrderBookSnapshot,
 } from "@zagvar/relay-core";
 import { RelayRedisKeys, type RelayRedisKeyOptions } from "./redis_keys.js";
@@ -98,7 +97,7 @@ export class RedisMarketDataCache implements MarketDataCache {
     );
   }
 
-  async getOrderBookSnapshot(request: OrderBookRequest): Promise<OrderBookSnapshot | undefined> {
+  async getOrderBookSnapshot(request: MarketDataRequest): Promise<OrderBookSnapshot | undefined> {
     const value = await this.#client.get(this.#keys.orderBookSnapshot(request));
 
     return value === null ? undefined : (JSON.parse(value) as OrderBookSnapshot);

@@ -3,7 +3,6 @@ import {
   normalizeSymbol,
   type BarsRequest,
   type MarketDataRequest,
-  type OrderBookRequest,
 } from "@zagvar/relay-core";
 
 /** Options used to namespace Relay Redis keys. */
@@ -31,7 +30,7 @@ export class RelayRedisKeys {
     return createMarketDataRequestKey(request);
   }
 
-  orderBookSnapshot(request: OrderBookRequest): string {
+  orderBookSnapshot(request: MarketDataRequest): string {
     const symbol = encodeURIComponent(normalizeSymbol(request.symbol));
 
     const venue = encodeURIComponent(request.venue?.trim().toUpperCase() ?? "default");

@@ -9,6 +9,8 @@ import {
   type MarketQuote,
   type MarketSummary,
   type MarketTrade,
+  type OrderBookSnapshot,
+  type OrderBookUpdate,
 } from "@zagvar/relay-core";
 import { RelayClientSession } from "../src/client_session.js";
 import type { RelaySocket } from "../src/socket.js";
@@ -157,6 +159,61 @@ describe("RelayClientSession", () => {
     ]);
   });
 
+  it("forwards trades only for the subscribed venue", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+    });
+
+    const coinbaseTrade: MarketTrade = {
+      type: "trade",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      price: 65_000.5,
+      quantity: 0.1,
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const binanceTrade: MarketTrade = {
+      ...coinbaseTrade,
+      venue: "BINANCE",
+      price: 65_002.5,
+    };
+
+    await session.start();
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_trades",
+        trades: [
+          {
+            symbol: "BTC/USDT",
+            venue: "COINBASE",
+          },
+        ],
+      }),
+    );
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, binanceTrade));
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, coinbaseTrade));
+
+    expect(socket.sentPayloads).toEqual([
+      {
+        type: "relay_message",
+        data: {
+          channel: "trade",
+          data: coinbaseTrade,
+        },
+      },
+    ]);
+  });
+
   it("does not forward unsubscribed trade messages", async () => {
     const socket = new FakeSocket();
     const eventBus = new MemoryRelayEventBus();
@@ -182,6 +239,104 @@ describe("RelayClientSession", () => {
     await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, trade));
 
     expect(socket.sentPayloads).toEqual([]);
+  });
+
+  it("forwards order-book events only for the subscribed venue", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+    });
+
+    const coinbaseSnapshot: OrderBookSnapshot = {
+      type: "order_book_snapshot",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bids: [{ price: 65_000, quantity: 1.25 }],
+      asks: [{ price: 65_001, quantity: 0.8 }],
+      timestamp: "2026-01-01T14:30:00.000Z",
+      sequence: 100,
+    };
+
+    const binanceSnapshot: OrderBookSnapshot = {
+      ...coinbaseSnapshot,
+      venue: "BINANCE",
+      bids: [{ price: 65_002, quantity: 1.5 }],
+      asks: [{ price: 65_003, quantity: 0.9 }],
+    };
+
+    const coinbaseUpdate: OrderBookUpdate = {
+      type: "order_book_update",
+      symbol: "BTC/USDT",
+      assetClass: "crypto",
+      venue: "COINBASE",
+      baseAsset: "BTC",
+      quoteAsset: "USDT",
+      bids: [{ price: 65_000, quantity: 2 }],
+      asks: [{ price: 65_001, quantity: 0 }],
+      timestamp: "2026-01-01T14:30:01.000Z",
+      sequence: 101,
+      previousSequence: 100,
+      reset: false,
+    };
+
+    await session.start();
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_order_books",
+        orderBooks: [
+          {
+            symbol: "BTC/USDT",
+            venue: "COINBASE",
+          },
+        ],
+      }),
+    );
+
+    // Same symbol, wrong venue: must not be forwarded.
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.orderBook, binanceSnapshot));
+
+    // Matching snapshot and update: both must be forwarded.
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.orderBook, coinbaseSnapshot));
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.orderBook, coinbaseUpdate));
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "unsubscribe_order_books",
+        orderBooks: [
+          {
+            symbol: "BTC/USDT",
+            venue: "COINBASE",
+          },
+        ],
+      }),
+    );
+
+    // Matching venue after unsubscribe: must not be forwarded.
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.orderBook, coinbaseUpdate));
+
+    expect(socket.sentPayloads).toEqual([
+      {
+        type: "relay_message",
+        data: {
+          channel: "order_book",
+          data: coinbaseSnapshot,
+        },
+      },
+      {
+        type: "relay_message",
+        data: {
+          channel: "order_book",
+          data: coinbaseUpdate,
+        },
+      },
+    ]);
   });
 
   it("forwards subscribed bar messages", async () => {

@@ -5,13 +5,15 @@ export type {
   RelayClientMessage,
   SubscribeBarsMessage,
   SubscribeChannelsMessage,
-  SubscribeQuotesMessage,
   SubscribeMarketSummariesMessage,
+  SubscribeOrderBooksMessage,
+  SubscribeQuotesMessage,
   SubscribeTradesMessage,
   UnsubscribeBarsMessage,
   UnsubscribeChannelsMessage,
-  UnsubscribeQuotesMessage,
   UnsubscribeMarketSummariesMessage,
+  UnsubscribeOrderBooksMessage,
+  UnsubscribeQuotesMessage,
   UnsubscribeTradesMessage,
 } from "./client_message.js";
 

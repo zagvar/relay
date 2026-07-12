@@ -1,9 +1,6 @@
 import type { MarketEventChannel } from "./event_channel.js";
 import type { BarsRequest, MarketDataRequest } from "./market_data.js";
-import {
-  createMarketDataRequestKey,
-  normalizeSymbol,
-} from "./symbols.js";
+import { createMarketDataRequestKey, normalizeSymbol } from "./symbols.js";
 
 /** Identifies a cached or live bar stream for one symbol and timeframe. */
 export type BarSubscription = BarsRequest;
@@ -14,6 +11,7 @@ export class MarketDataSubscriptionState {
   readonly #marketSummarySymbols = new Set<string>();
   readonly #quoteKeys = new Set<string>();
   readonly #tradeKeys = new Set<string>();
+  readonly #orderBookKeys = new Set<string>();
   readonly #barKeys = new Set<string>();
 
   /** Returns subscribed channels in insertion order. */
@@ -34,6 +32,11 @@ export class MarketDataSubscriptionState {
   /** Returns subscribed trade symbols in insertion order. */
   get tradeKeys(): readonly string[] {
     return [...this.#tradeKeys];
+  }
+
+  /** Returns subscribed order-book keys in insertion order. */
+  get orderBookKeys(): readonly string[] {
+    return [...this.#orderBookKeys];
   }
 
   /** Returns subscribed bar keys in insertion order. */
@@ -75,42 +78,49 @@ export class MarketDataSubscriptionState {
     return this.#marketSummarySymbols.has(normalizeSymbol(symbol));
   }
 
-  /** Adds quote subscriptions for the provided symbols. */
+  /** Adds quote subscriptions for the provided requests. */
   subscribeQuotes(requests: readonly MarketDataRequest[]): void {
-    for (const request of requests) {
-      this.#quoteKeys.add(createMarketDataRequestKey(request));
-    }
+    addMarketDataRequests(this.#quoteKeys, requests);
   }
 
-  /** Removes quote subscriptions for the provided symbols. */
+  /** Removes quote subscriptions for the provided requests. */
   unsubscribeQuotes(requests: readonly MarketDataRequest[]): void {
-    for (const request of requests) {
-      this.#quoteKeys.delete(createMarketDataRequestKey(request));
-    }
+    removeMarketDataRequests(this.#quoteKeys, requests);
   }
 
-  /** Returns true when subscribed to quotes for a symbol. */
+  /** Returns true when subscribed to quotes for a request. */
   hasQuoteSubscription(request: MarketDataRequest): boolean {
-    return this.#quoteKeys.has(createMarketDataRequestKey(request));
+    return hasMarketDataRequest(this.#quoteKeys, request);
   }
 
-  /** Adds trade subscriptions for the provided symbols. */
+  /** Adds trade subscriptions for the provided requests. */
   subscribeTrades(requests: readonly MarketDataRequest[]): void {
-    for (const request of requests) {
-      this.#tradeKeys.add(createMarketDataRequestKey(request));
-    }
+    addMarketDataRequests(this.#tradeKeys, requests);
   }
 
-  /** Removes trade subscriptions for the provided symbols. */
+  /** Removes trade subscriptions for the provided requests. */
   unsubscribeTrades(requests: readonly MarketDataRequest[]): void {
-    for (const request of requests) {
-      this.#tradeKeys.delete(createMarketDataRequestKey(request));
-    }
+    removeMarketDataRequests(this.#tradeKeys, requests);
   }
 
-  /** Returns true when this client is subscribed to trades for a symbol. */
+  /** Returns true when subscribed to trades for a request. */
   hasTradeSubscription(request: MarketDataRequest): boolean {
-    return this.#tradeKeys.has(createMarketDataRequestKey(request));
+    return hasMarketDataRequest(this.#tradeKeys, request);
+  }
+
+  /** Adds venue-aware order-book subscriptions. */
+  subscribeOrderBooks(requests: readonly MarketDataRequest[]): void {
+    addMarketDataRequests(this.#orderBookKeys, requests);
+  }
+
+  /** Removes venue-aware order-book subscriptions. */
+  unsubscribeOrderBooks(requests: readonly MarketDataRequest[]): void {
+    removeMarketDataRequests(this.#orderBookKeys, requests);
+  }
+
+  /** Returns true when subscribed to an order book. */
+  hasOrderBookSubscription(request: MarketDataRequest): boolean {
+    return hasMarketDataRequest(this.#orderBookKeys, request);
   }
 
   /** Adds a bar subscription. */
@@ -134,14 +144,28 @@ export class MarketDataSubscriptionState {
     this.#marketSummarySymbols.clear();
     this.#quoteKeys.clear();
     this.#tradeKeys.clear();
+    this.#orderBookKeys.clear();
     this.#barKeys.clear();
   }
 }
 
+function addMarketDataRequests(keys: Set<string>, requests: readonly MarketDataRequest[]): void {
+  for (const request of requests) {
+    keys.add(createMarketDataRequestKey(request));
+  }
+}
+
+function removeMarketDataRequests(keys: Set<string>, requests: readonly MarketDataRequest[]): void {
+  for (const request of requests) {
+    keys.delete(createMarketDataRequestKey(request));
+  }
+}
+
+function hasMarketDataRequest(keys: ReadonlySet<string>, request: MarketDataRequest): boolean {
+  return keys.has(createMarketDataRequestKey(request));
+}
+
 /** Creates a stable key for bar subscriptions. */
 export function createBarSubscriptionKey(subscription: BarSubscription): string {
-  return JSON.stringify([
-    createMarketDataRequestKey(subscription),
-    subscription.timeframe,
-  ]);
+  return JSON.stringify([createMarketDataRequestKey(subscription), subscription.timeframe]);
 }

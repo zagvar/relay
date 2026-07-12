@@ -16,7 +16,6 @@ export type {
 export type {
   OrderBookEvent,
   OrderBookLevel,
-  OrderBookRequest,
   OrderBookSnapshot,
   OrderBookUpdate,
   OrderBookUpdateLevel,

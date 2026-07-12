@@ -34,10 +34,7 @@ describe("MarketDataSubscriptionState", () => {
   it("tracks venue-aware quote subscriptions", () => {
     const state = new MarketDataSubscriptionState();
 
-    state.subscribeQuotes([
-      { symbol: " aapl ", venue: " nasdaq " },
-      { symbol: "msft" },
-    ]);
+    state.subscribeQuotes([{ symbol: " aapl ", venue: " nasdaq " }, { symbol: "msft" }]);
 
     expect(state.quoteKeys).toEqual([
       createMarketDataRequestKey({ symbol: "AAPL", venue: "NASDAQ" }),
@@ -54,10 +51,7 @@ describe("MarketDataSubscriptionState", () => {
   it("tracks venue-aware trade subscriptions", () => {
     const state = new MarketDataSubscriptionState();
 
-    state.subscribeTrades([
-      { symbol: " aapl ", venue: " nasdaq " },
-      { symbol: "msft" },
-    ]);
+    state.subscribeTrades([{ symbol: " aapl ", venue: " nasdaq " }, { symbol: "msft" }]);
 
     expect(state.tradeKeys).toEqual([
       createMarketDataRequestKey({ symbol: "AAPL", venue: "NASDAQ" }),
@@ -69,6 +63,66 @@ describe("MarketDataSubscriptionState", () => {
 
     expect(state.hasTradeSubscription({ symbol: "AAPL", venue: "NASDAQ" })).toBe(false);
     expect(state.hasTradeSubscription({ symbol: "MSFT" })).toBe(true);
+  });
+
+  it("tracks venue-aware order-book subscriptions", () => {
+    const state = new MarketDataSubscriptionState();
+
+    state.subscribeOrderBooks([
+      {
+        symbol: " btc/usdt ",
+        venue: " coinbase ",
+      },
+      {
+        symbol: "BTC/USDT",
+        venue: "BINANCE",
+      },
+    ]);
+
+    expect(state.orderBookKeys).toEqual([
+      createMarketDataRequestKey({
+        symbol: "BTC/USDT",
+        venue: "COINBASE",
+      }),
+      createMarketDataRequestKey({
+        symbol: "BTC/USDT",
+        venue: "BINANCE",
+      }),
+    ]);
+
+    expect(
+      state.hasOrderBookSubscription({
+        symbol: "btc/usdt",
+        venue: "coinbase",
+      }),
+    ).toBe(true);
+
+    expect(
+      state.hasOrderBookSubscription({
+        symbol: "BTC/USDT",
+      }),
+    ).toBe(false);
+
+    state.unsubscribeOrderBooks([
+      {
+        symbol: "BTC/USDT",
+        venue: "COINBASE",
+      },
+    ]);
+
+    expect(
+      state.hasOrderBookSubscription({
+        symbol: "BTC/USDT",
+        venue: "COINBASE",
+      }),
+    ).toBe(false);
+
+    expect(
+      state.hasOrderBookSubscription({
+        symbol: "BTC/USDT",
+        venue: "BINANCE",
+      }),
+    ).toBe(true);
   });
 
   it("tracks normalized bar subscriptions", () => {
@@ -93,6 +147,12 @@ describe("MarketDataSubscriptionState", () => {
     state.subscribeMarketSummaries(["AAPL"]);
     state.subscribeQuotes([{ symbol: "AAPL" }]);
     state.subscribeTrades([{ symbol: "AAPL" }]);
+    state.subscribeOrderBooks([
+      {
+        symbol: "BTC/USDT",
+        venue: "COINBASE",
+      },
+    ]);
     state.subscribeBars({ symbol: "AAPL", timeframe: "1Min" });
 
     state.clear();
@@ -101,6 +161,7 @@ describe("MarketDataSubscriptionState", () => {
     expect(state.marketSummarySymbols).toEqual([]);
     expect(state.quoteKeys).toEqual([]);
     expect(state.tradeKeys).toEqual([]);
+    expect(state.orderBookKeys).toEqual([]);
     expect(state.barKeys).toEqual([]);
   });
 });

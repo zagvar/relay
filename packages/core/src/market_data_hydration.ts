@@ -9,7 +9,7 @@ import type {
   MarketSummary,
   MarketTrade,
 } from "./market_data.js";
-import type { OrderBookRequest, OrderBookSnapshot } from "./order_book.js";
+import type { OrderBookSnapshot } from "./order_book.js";
 
 /** Request for cached market data suitable for initial client hydration. */
 export interface MarketDataHydrationRequest {
@@ -17,7 +17,7 @@ export interface MarketDataHydrationRequest {
   readonly quotes?: readonly MarketDataRequest[];
   readonly trades?: readonly MarketDataRequest[];
   readonly bars?: readonly BarsRequest[];
-  readonly orderBooks?: readonly OrderBookRequest[];
+  readonly orderBooks?: readonly MarketDataRequest[];
   readonly includeMarketSummaries?: boolean;
   readonly includeMarketClock?: boolean;
 }
@@ -112,9 +112,7 @@ export class MarketDataHydrator {
       requests.map(async (request) => this.#cache.getLatestQuote(request)),
     );
 
-    return quotes.filter(
-      (quote): quote is MarketQuote => quote !== undefined,
-    );
+    return quotes.filter((quote): quote is MarketQuote => quote !== undefined);
   }
 
   async #hydrateLatestTrades(
@@ -124,14 +122,10 @@ export class MarketDataHydrator {
       requests.map(async (request) => this.#cache.getLatestTrade(request)),
     );
 
-    return trades.filter(
-      (trade): trade is MarketTrade => trade !== undefined,
-    );
+    return trades.filter((trade): trade is MarketTrade => trade !== undefined);
   }
 
-  async #hydrateBars(
-    requests: readonly BarsRequest[],
-  ): Promise<readonly MarketBar[]> {
+  async #hydrateBars(requests: readonly BarsRequest[]): Promise<readonly MarketBar[]> {
     const barGroups = await Promise.all(
       requests.map(async (request) => this.#cache.getBars(request)),
     );
@@ -140,7 +134,7 @@ export class MarketDataHydrator {
   }
 
   async #hydrateOrderBooks(
-    requests: readonly OrderBookRequest[],
+    requests: readonly MarketDataRequest[],
   ): Promise<readonly OrderBookSnapshot[]> {
     const snapshots = await Promise.all(
       requests.map(async (request) => this.#cache.getOrderBookSnapshot(request)),
