@@ -84,9 +84,23 @@ event against the client's exact normalized subscription key.
 
 ## Message Validation
 
-`parseRelayClientMessage` parses and validates incoming JSON. Invalid JSON,
-unsupported message types, and malformed request arrays are rejected before
-session state changes.
+`parseRelayClientMessage` parses incoming JSON through strict runtime schemas.
+Invalid JSON, unsupported message types, unknown properties, duplicate
+subscriptions, and excessive request cardinality are rejected before session
+state changes.
+
+Client messages are limited to 64 KiB. `createRelayNodeWsServer` applies this
+limit through the `ws` `maxPayload` option as well as application-level parsing.
+When attaching Relay to an existing `WebSocketServer`, configure that server
+with `maxPayload: RELAY_CLIENT_MESSAGE_MAX_BYTES`.
+
+## Connection Limits
+
+Each session accepts at most 2,000 distinct subscriptions by default. Outbound
+sends are serialized, and a connection is closed when its queued transport data
+plus the next message would exceed the default 8 MiB buffer. Configure
+`maxSubscriptions` and `maxBufferedBytes` per server or attached connection when
+your application needs different limits.
 
 ## Status
 

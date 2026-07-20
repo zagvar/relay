@@ -32,6 +32,12 @@ the default or consolidated stream selected by the application or provider.
 Provider payloads are normalized into full field names, quantities in instrument
 units, and ISO 8601 timestamps before entering the rest of the system.
 
+Prices, quantities, volumes, and other economic decimal values use canonical
+decimal strings. This preserves provider precision across parsing, caching,
+JSON, and WebSocket boundaries without relying on JavaScript floating-point
+numbers. Relay rejects exponent notation, signs on unsigned values, redundant
+leading zeros, and trailing fractional zeros.
+
 ## Data Flow
 
 ```txt
@@ -59,11 +65,11 @@ Requires Node.js 22 or later and pnpm.
 
 ```bash
 pnpm install
-pnpm check
-pnpm lint
-pnpm test:run
-pnpm build
+pnpm verify
 ```
+
+`verify` checks formatting, builds workspace packages in dependency order, then
+runs typechecking, linting, and the complete test suite.
 
 ## Documentation
 

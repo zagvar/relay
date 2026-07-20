@@ -64,9 +64,13 @@ Alpaca field names are mapped to Relay's public names, including `price`,
 `quantity`, `bidPrice`, and `askPrice`. Provider timestamps remain ISO 8601
 strings, and the source exchange code is retained as the event's `venue`.
 
+Numeric provider tokens are parsed losslessly and converted to Relay's canonical
+decimal strings before they cross the adapter boundary. This avoids precision
+loss from an intermediate JavaScript `number` conversion.
+
 Alpaca stock quote sizes are reported in round lots. The adapter converts them
 to share quantities so downstream consumers do not depend on Alpaca's lot-size
-convention.
+convention. Zero-sized quotes remain valid and map to `"0"`.
 
 ## Smoke Test
 

@@ -58,6 +58,11 @@ Bars use Redis sorted sets scored by timestamp. `maxBars` trims old entries and
 `ttlSeconds` expires an inactive series. Timeframe-specific settings override the
 default retention policy.
 
+Appending a bar with an existing timestamp replaces that timestamp's prior
+value. Reads return bars chronologically; `start` and `end` are inclusive, and
+`limit` selects the most recent matching bars while preserving chronological
+order.
+
 Redis is intended as a hot cache, not a durable historical store. Longer history
 should generally come from a provider API, database, object storage, or dedicated
 time-series system.
