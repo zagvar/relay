@@ -61,14 +61,25 @@ await pipeline.processEvent({
   symbol: "BTC/USD",
   assetClass: "crypto",
   venue: "COINBASE",
-  price: 68_250.5,
-  quantity: 0.02,
+  price: "68250.5",
+  quantity: "0.02",
   timestamp: "2026-07-12T01:30:00.000Z",
 });
 ```
 
 Applications can use the in-memory implementations for tests and single-process
 demos, or provide implementations of `MarketDataCache` and `RelayEventBus`.
+
+## Decimal Values
+
+Economic values such as prices, quantities, volumes, and VWAP use canonical
+decimal strings. Use `@zagvar/decimal` to validate, canonicalize, compare, and
+calculate with them. Do not convert these values to JavaScript `number` before
+business calculations or transport.
+
+Canonical unsigned values use plain decimal notation, omit redundant leading
+zeros and trailing fractional zeros, and represent zero as `"0"`. Schemas apply
+positive or non-negative constraints according to each field's meaning.
 
 ## Hydration
 

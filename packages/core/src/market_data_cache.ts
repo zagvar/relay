@@ -1,14 +1,70 @@
-import type {
-  BarsRequest,
-  MarketBar,
-  MarketClock,
-  MarketDataRequest,
-  MarketQuote,
-  MarketSummary,
-  MarketTrade,
+import { z } from "zod";
+import {
+  barsRequestSchema,
+  marketBarSchema,
+  marketSummarySchema,
+  type BarsRequest,
+  type MarketBar,
+  type MarketClock,
+  type MarketDataRequest,
+  type MarketQuote,
+  type MarketSummary,
+  type MarketTrade,
 } from "./market_data.js";
 import type { OrderBookSnapshot } from "./order_book.js";
 import { createMarketDataRequestKey, normalizeSymbol } from "./symbols.js";
+
+/** Maximum number of market summaries accepted in one cache or pipeline batch. */
+export const MAX_MARKET_SUMMARIES_PER_BATCH = 10_000;
+
+/** Validates a symbol-keyed batch of normalized market summaries. */
+export const marketSummaryBatchSchema = z
+  .record(z.string(), marketSummarySchema)
+  .superRefine((marketSummaries, context) => {
+    const entries = Object.entries(marketSummaries);
+
+    if (entries.length > MAX_MARKET_SUMMARIES_PER_BATCH) {
+      context.addIssue({
+        code: "custom",
+        message: "A market-summary batch cannot contain more than 10000 entries.",
+      });
+    }
+
+    const normalizedKeys = new Set<string>();
+
+    for (const [key, marketSummary] of entries) {
+      if (key.length === 0 || key.length > 64 || key !== key.trim()) {
+        context.addIssue({
+          code: "custom",
+          path: [key],
+          message:
+            "Market-summary keys must be non-blank identifiers without surrounding whitespace.",
+        });
+
+        continue;
+      }
+
+      const normalizedKey = normalizeSymbol(key);
+
+      if (normalizedKey !== normalizeSymbol(marketSummary.symbol)) {
+        context.addIssue({
+          code: "custom",
+          path: [key],
+          message: "Market-summary key must identify the same symbol as its value.",
+        });
+      }
+
+      if (normalizedKeys.has(normalizedKey)) {
+        context.addIssue({
+          code: "custom",
+          path: [key],
+          message: "Market-summary batch contains duplicate normalized symbol keys.",
+        });
+      }
+
+      normalizedKeys.add(normalizedKey);
+    }
+  });
 
 /** Provider-neutral cache contract for latest market data. */
 export interface MarketDataCache {
@@ -42,10 +98,15 @@ export interface MarketDataCache {
   /** Returns the latest market summary for a symbol. */
   getMarketSummary(symbol: string): Promise<MarketSummary | undefined>;
 
-  /** Appends a bar to the cached time series for its symbol and timeframe. */
+  /** Stores or replaces a bar identified by symbol, venue, timeframe, and timestamp. */
   appendBar(bar: MarketBar): Promise<void>;
 
-  /** Returns cached bars for a symbol, venue, and timeframe. */
+  /**
+   * Returns matching bars in chronological order.
+   *
+   * `start` and `end` are inclusive. When `limit` is supplied, the most recent
+   * matching bars are returned.
+   */
   getBars(request: BarsRequest): Promise<readonly MarketBar[]>;
 
   /** Stores the latest market clock. */
@@ -61,7 +122,7 @@ export class MemoryMarketDataCache implements MarketDataCache {
   readonly #latestTradesByKey = new Map<string, MarketTrade>();
   readonly #orderBookSnapshotsByKey = new Map<string, OrderBookSnapshot>();
   readonly #marketSummariesBySymbol = new Map<string, MarketSummary>();
-  readonly #barsByKey = new Map<string, MarketBar[]>();
+  readonly #barsByKey = new Map<string, Map<number, MarketBar>>();
   #marketClock: MarketClock | undefined;
 
   setLatestQuote(quote: MarketQuote): Promise<void> {
@@ -99,11 +160,13 @@ export class MemoryMarketDataCache implements MarketDataCache {
   }
 
   setMarketSummaries(marketSummaries: Readonly<Record<string, MarketSummary>>): Promise<void> {
-    for (const [symbol, marketSummary] of Object.entries(marketSummaries)) {
-      this.#marketSummariesBySymbol.set(normalizeSymbol(symbol), marketSummary);
-    }
+    return Promise.resolve().then(() => {
+      const parsedMarketSummaries = marketSummaryBatchSchema.parse(marketSummaries);
 
-    return Promise.resolve();
+      for (const [symbol, marketSummary] of Object.entries(parsedMarketSummaries)) {
+        this.#marketSummariesBySymbol.set(normalizeSymbol(symbol), marketSummary);
+      }
+    });
   }
 
   getMarketSummaries(): Promise<Readonly<Record<string, MarketSummary>>> {
@@ -121,17 +184,41 @@ export class MemoryMarketDataCache implements MarketDataCache {
   }
 
   appendBar(bar: MarketBar): Promise<void> {
-    const key = createBarsKey(bar);
-    const bars = this.#barsByKey.get(key) ?? [];
+    const parsedBar = marketBarSchema.parse(bar);
+    const key = createBarsKey(parsedBar);
+    const bars = this.#barsByKey.get(key) ?? new Map<number, MarketBar>();
 
-    bars.push(bar);
+    bars.set(Date.parse(parsedBar.timestamp), parsedBar);
     this.#barsByKey.set(key, bars);
 
     return Promise.resolve();
   }
 
   getBars(request: BarsRequest): Promise<readonly MarketBar[]> {
-    return Promise.resolve(this.#barsByKey.get(createBarsKey(request)) ?? []);
+    const parsedRequest = barsRequestSchema.parse(request);
+    const bars = this.#barsByKey.get(createBarsKey(parsedRequest));
+
+    if (bars === undefined) {
+      return Promise.resolve([]);
+    }
+
+    const startTime =
+      parsedRequest.start === undefined
+        ? Number.NEGATIVE_INFINITY
+        : Date.parse(parsedRequest.start);
+
+    const endTime =
+      parsedRequest.end === undefined ? Number.POSITIVE_INFINITY : Date.parse(parsedRequest.end);
+
+    const matchingBars = [...bars.entries()]
+      .filter(([timestamp]) => timestamp >= startTime && timestamp <= endTime)
+      .sort(([leftTimestamp], [rightTimestamp]) => leftTimestamp - rightTimestamp)
+      .map(([, bar]) => bar);
+
+    const limitedBars =
+      parsedRequest.limit === undefined ? matchingBars : matchingBars.slice(-parsedRequest.limit);
+
+    return Promise.resolve(limitedBars);
   }
 
   setMarketClock(clock: MarketClock): Promise<void> {

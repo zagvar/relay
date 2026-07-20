@@ -1,11 +1,13 @@
+import type { LosslessNumber } from "lossless-json";
+
 /** Alpaca stock trade message from the market data websocket. */
 export interface AlpacaStockTradeMessage {
   readonly T: "t";
   readonly S: string;
-  readonly i: number;
+  readonly i: LosslessNumber;
   readonly x: string;
-  readonly p: number;
-  readonly s: number;
+  readonly p: LosslessNumber;
+  readonly s: LosslessNumber;
   readonly c: readonly string[];
   readonly t: string;
   readonly z: string;
@@ -16,11 +18,11 @@ export interface AlpacaStockQuoteMessage {
   readonly T: "q";
   readonly S: string;
   readonly ax: string;
-  readonly ap: number;
-  readonly as: number;
+  readonly ap: LosslessNumber;
+  readonly as: LosslessNumber;
   readonly bx: string;
-  readonly bp: number;
-  readonly bs: number;
+  readonly bp: LosslessNumber;
+  readonly bs: LosslessNumber;
   readonly c: readonly string[];
   readonly t: string;
   readonly z: string;
@@ -30,13 +32,13 @@ export interface AlpacaStockQuoteMessage {
 export interface AlpacaStockBarMessage {
   readonly T: "b" | "d" | "u";
   readonly S: string;
-  readonly o: number;
-  readonly h: number;
-  readonly l: number;
-  readonly c: number;
-  readonly v: number;
-  readonly vw?: number;
-  readonly n?: number;
+  readonly o: LosslessNumber;
+  readonly h: LosslessNumber;
+  readonly l: LosslessNumber;
+  readonly c: LosslessNumber;
+  readonly v: LosslessNumber;
+  readonly vw?: LosslessNumber;
+  readonly n?: LosslessNumber;
   readonly t: string;
 }
 
@@ -53,7 +55,7 @@ export interface AlpacaSuccessMessage {
 /** Alpaca websocket error control message. */
 export interface AlpacaErrorMessage {
   readonly T: "error";
-  readonly code: number;
+  readonly code: LosslessNumber;
   readonly msg: string;
 }
 

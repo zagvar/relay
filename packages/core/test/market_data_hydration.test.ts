@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MemoryMarketDataCache } from "../src/market_data_cache.js";
-import { MarketDataHydrator } from "../src/market_data_hydration.js";
+import {
+  MarketDataHydrator,
+  marketDataHydrationRequestSchema,
+} from "../src/market_data_hydration.js";
 import type {
   MarketBar,
   MarketClock,
@@ -15,8 +18,8 @@ describe("MarketDataHydrator", () => {
     const cache = new MemoryMarketDataCache();
     const hydrator = new MarketDataHydrator(cache);
     const marketSummaries: Record<string, MarketSummary> = {
-      AAPL: { symbol: "AAPL", assetClass: "equity", price: 195.12 },
-      MSFT: { symbol: "MSFT", assetClass: "equity", price: 420.5 },
+      AAPL: { symbol: "AAPL", assetClass: "equity", price: "195.12" },
+      MSFT: { symbol: "MSFT", assetClass: "equity", price: "420.5" },
     };
 
     await cache.setMarketSummaries(marketSummaries);
@@ -40,10 +43,10 @@ describe("MarketDataHydrator", () => {
       type: "quote",
       symbol: "AAPL",
       assetClass: "equity",
-      bidPrice: 195.1,
-      bidQuantity: 200,
-      askPrice: 195.12,
-      askQuantity: 100,
+      bidPrice: "195.1",
+      bidQuantity: "200",
+      askPrice: "195.12",
+      askQuantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -65,8 +68,8 @@ describe("MarketDataHydrator", () => {
       type: "trade",
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
-      quantity: 100,
+      price: "195.12",
+      quantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -89,11 +92,11 @@ describe("MarketDataHydrator", () => {
       symbol: "AAPL",
       assetClass: "equity",
       timeframe: "1Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -119,18 +122,18 @@ describe("MarketDataHydrator", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bidPrice: 65_000,
-      bidQuantity: 1.2,
-      askPrice: 65_001,
-      askQuantity: 0.8,
+      bidPrice: "65000",
+      bidQuantity: "1.2",
+      askPrice: "65001",
+      askQuantity: "0.8",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     const binanceQuote: MarketQuote = {
       ...coinbaseQuote,
       venue: "BINANCE",
-      bidPrice: 65_002,
-      askPrice: 65_003,
+      bidPrice: "65002",
+      askPrice: "65003",
     };
 
     const coinbaseTrade: MarketTrade = {
@@ -140,15 +143,15 @@ describe("MarketDataHydrator", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      price: 65_000.5,
-      quantity: 0.1,
+      price: "65000.5",
+      quantity: "0.1",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     const binanceTrade: MarketTrade = {
       ...coinbaseTrade,
       venue: "BINANCE",
-      price: 65_002.5,
+      price: "65002.5",
     };
 
     const coinbaseBar: MarketBar = {
@@ -159,20 +162,20 @@ describe("MarketDataHydrator", () => {
       baseAsset: "BTC",
       quoteAsset: "USDT",
       timeframe: "1Min",
-      open: 65_000,
-      high: 65_100,
-      low: 64_950,
-      close: 65_050,
-      volume: 12.5,
+      open: "65000",
+      high: "65100",
+      low: "64950",
+      close: "65050",
+      volume: "12.5",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     const binanceBar: MarketBar = {
       ...coinbaseBar,
       venue: "BINANCE",
-      high: 65_120,
-      close: 65_075,
-      volume: 18.25,
+      high: "65120",
+      close: "65075",
+      volume: "18.25",
     };
 
     await cache.setLatestQuote(coinbaseQuote);
@@ -221,8 +224,8 @@ describe("MarketDataHydrator", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bids: [{ price: 65_000, quantity: 1.25 }],
-      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      bids: [{ price: "65000", quantity: "1.25" }],
+      asks: [{ price: "65000.5", quantity: "0.8" }],
       timestamp: "2026-01-01T14:30:00.000Z",
       sequence: 100,
     };
@@ -288,10 +291,10 @@ describe("MarketDataHydrator", () => {
       symbol: "BTC/USDT",
       assetClass: "crypto",
       venue: "COINBASE",
-      bidPrice: 65_000,
-      bidQuantity: 1.2,
-      askPrice: 65_001,
-      askQuantity: 0.8,
+      bidPrice: "65000",
+      bidQuantity: "1.2",
+      askPrice: "65001",
+      askQuantity: "0.8",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -307,6 +310,82 @@ describe("MarketDataHydrator", () => {
       }),
     ).resolves.toEqual({
       latestQuotes: [],
+    });
+  });
+
+  it("parses strict hydration requests", () => {
+    expect(
+      marketDataHydrationRequestSchema.safeParse({
+        symbols: ["AAPL"],
+        quotes: [
+          {
+            symbol: "AAPL",
+            venue: "NASDAQ",
+          },
+        ],
+        bars: [
+          {
+            symbol: "AAPL",
+            timeframe: "1Min",
+            limit: 100,
+          },
+        ],
+        includeMarketSummaries: true,
+      }).success,
+    ).toBe(true);
+
+    expect(
+      marketDataHydrationRequestSchema.safeParse({
+        symbols: ["AAPL"],
+        unexpected: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects invalid nested hydration requests", () => {
+    expect(
+      marketDataHydrationRequestSchema.safeParse({
+        symbols: [" AAPL"],
+      }).success,
+    ).toBe(false);
+
+    expect(
+      marketDataHydrationRequestSchema.safeParse({
+        quotes: [
+          {
+            symbol: "",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+
+    expect(
+      marketDataHydrationRequestSchema.safeParse({
+        bars: [
+          {
+            symbol: "AAPL",
+            timeframe: "1Min",
+            start: "not-a-timestamp",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates requests before hydration", async () => {
+    const cache = new MemoryMarketDataCache();
+    const hydrator = new MarketDataHydrator(cache);
+
+    await expect(
+      hydrator.hydrate({
+        quotes: [
+          {
+            symbol: " AAPL",
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      name: "ZodError",
     });
   });
 });

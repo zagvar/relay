@@ -1,291 +1,318 @@
-import type {
-  BarsHydrationRequest,
-  MarketDataHydrationRequest,
-  MarketDataRequest,
-  MarketEventChannel,
+import { z } from "zod";
+import {
+  barsRequestSchema,
+  createBarSubscriptionKey,
+  createMarketDataRequestKey,
+  marketDataHydrationRequestSchema,
+  marketDataRequestSchema,
+  marketEventChannelSchema,
+  marketIdentifierSchema,
+  normalizeSymbol,
+  timeframeSchema,
 } from "@zagvar/relay-core";
-import { isRecord, isStringArray } from "./type_guards.js";
+
+export const RELAY_CLIENT_MESSAGE_MAX_BYTES = 64 * 1024;
+
+export const RELAY_CLIENT_MESSAGE_MAX_ITEMS = 500;
+
+const channelArraySchema = z
+  .array(marketEventChannelSchema)
+  .max(RELAY_CLIENT_MESSAGE_MAX_ITEMS)
+  .superRefine((channels, context) => {
+    addDuplicateIssues(channels, (channel) => channel, context);
+  })
+  .readonly();
+
+const symbolArraySchema = z
+  .array(marketIdentifierSchema)
+  .max(RELAY_CLIENT_MESSAGE_MAX_ITEMS)
+  .superRefine((symbols, context) => {
+    addDuplicateIssues(symbols, normalizeSymbol, context);
+  })
+  .readonly();
+
+const marketDataRequestArraySchema = z
+  .array(marketDataRequestSchema)
+  .max(RELAY_CLIENT_MESSAGE_MAX_ITEMS)
+  .superRefine((requests, context) => {
+    addDuplicateIssues(requests, createMarketDataRequestKey, context);
+  })
+  .readonly();
+
+const barSubscriptionSchema = z
+  .object({
+    symbol: marketIdentifierSchema,
+    venue: marketIdentifierSchema.optional(),
+    timeframe: timeframeSchema,
+  })
+  .strict();
+
+const barSubscriptionArraySchema = z
+  .array(barSubscriptionSchema)
+  .max(RELAY_CLIENT_MESSAGE_MAX_ITEMS)
+  .superRefine((subscriptions, context) => {
+    addDuplicateIssues(subscriptions, createBarSubscriptionKey, context);
+  })
+  .readonly();
+
+const barsHydrationRequestArraySchema = z
+  .array(barsRequestSchema)
+  .max(RELAY_CLIENT_MESSAGE_MAX_ITEMS)
+  .superRefine((requests, context) => {
+    addDuplicateIssues(
+      requests,
+      (request) =>
+        JSON.stringify([
+          createBarSubscriptionKey(request),
+          request.start ?? null,
+          request.end ?? null,
+          request.limit ?? null,
+        ]),
+      context,
+    );
+  })
+  .readonly();
+
+const boundedHydrationRequestSchema = marketDataHydrationRequestSchema
+  .extend({
+    symbols: symbolArraySchema.optional(),
+    quotes: marketDataRequestArraySchema.optional(),
+    trades: marketDataRequestArraySchema.optional(),
+    bars: barsHydrationRequestArraySchema.optional(),
+    orderBooks: marketDataRequestArraySchema.optional(),
+  })
+  .superRefine((request, context) => {
+    const itemCount =
+      (request.symbols?.length ?? 0) +
+      (request.quotes?.length ?? 0) +
+      (request.trades?.length ?? 0) +
+      (request.bars?.length ?? 0) +
+      (request.orderBooks?.length ?? 0);
+
+    if (itemCount > RELAY_CLIENT_MESSAGE_MAX_ITEMS) {
+      context.addIssue({
+        code: "custom",
+        message: "A hydration request cannot contain more than 500 total items.",
+      });
+    }
+  });
+
+const subscribeChannelsMessageSchema = z
+  .object({
+    type: z.literal("subscribe_channels"),
+    channels: channelArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const unsubscribeChannelsMessageSchema = z
+  .object({
+    type: z.literal("unsubscribe_channels"),
+    channels: channelArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const subscribeMarketSummariesMessageSchema = z
+  .object({
+    type: z.literal("subscribe_market_summaries"),
+    symbols: symbolArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const unsubscribeMarketSummariesMessageSchema = z
+  .object({
+    type: z.literal("unsubscribe_market_summaries"),
+    symbols: symbolArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const subscribeQuotesMessageSchema = z
+  .object({
+    type: z.literal("subscribe_quotes"),
+    quotes: marketDataRequestArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const unsubscribeQuotesMessageSchema = z
+  .object({
+    type: z.literal("unsubscribe_quotes"),
+    quotes: marketDataRequestArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const subscribeTradesMessageSchema = z
+  .object({
+    type: z.literal("subscribe_trades"),
+    trades: marketDataRequestArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const unsubscribeTradesMessageSchema = z
+  .object({
+    type: z.literal("unsubscribe_trades"),
+    trades: marketDataRequestArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const subscribeOrderBooksMessageSchema = z
+  .object({
+    type: z.literal("subscribe_order_books"),
+    orderBooks: marketDataRequestArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const unsubscribeOrderBooksMessageSchema = z
+  .object({
+    type: z.literal("unsubscribe_order_books"),
+    orderBooks: marketDataRequestArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const subscribeBarsMessageSchema = z
+  .object({
+    type: z.literal("subscribe_bars"),
+    bars: barSubscriptionArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const unsubscribeBarsMessageSchema = z
+  .object({
+    type: z.literal("unsubscribe_bars"),
+    bars: barSubscriptionArraySchema,
+  })
+  .strict()
+  .readonly();
+
+const hydrateMessageSchema = z
+  .object({
+    type: z.literal("hydrate"),
+    request: boundedHydrationRequestSchema,
+  })
+  .strict()
+  .readonly();
+
+/** Runtime schema for messages accepted from Relay WebSocket clients. */
+export const relayClientMessageSchema = z.discriminatedUnion("type", [
+  subscribeChannelsMessageSchema,
+  unsubscribeChannelsMessageSchema,
+  subscribeMarketSummariesMessageSchema,
+  unsubscribeMarketSummariesMessageSchema,
+  subscribeQuotesMessageSchema,
+  unsubscribeQuotesMessageSchema,
+  subscribeTradesMessageSchema,
+  unsubscribeTradesMessageSchema,
+  subscribeOrderBooksMessageSchema,
+  unsubscribeOrderBooksMessageSchema,
+  subscribeBarsMessageSchema,
+  unsubscribeBarsMessageSchema,
+  hydrateMessageSchema,
+]);
 
 /** Client message sent over a Relay WebSocket connection. */
-export type RelayClientMessage =
-  | SubscribeChannelsMessage
-  | UnsubscribeChannelsMessage
-  | SubscribeMarketSummariesMessage
-  | UnsubscribeMarketSummariesMessage
-  | SubscribeQuotesMessage
-  | UnsubscribeQuotesMessage
-  | SubscribeTradesMessage
-  | UnsubscribeTradesMessage
-  | SubscribeOrderBooksMessage
-  | UnsubscribeOrderBooksMessage
-  | SubscribeBarsMessage
-  | UnsubscribeBarsMessage
-  | HydrateMessage;
+export type RelayClientMessage = z.infer<typeof relayClientMessageSchema>;
 
-/** Subscribes the client to one or more event channels. */
-export interface SubscribeChannelsMessage {
-  readonly type: "subscribe_channels";
-  readonly channels: readonly MarketEventChannel[];
-}
+export type SubscribeChannelsMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "subscribe_channels" }
+>;
 
-/** Unsubscribes the client from one or more event channels. */
-export interface UnsubscribeChannelsMessage {
-  readonly type: "unsubscribe_channels";
-  readonly channels: readonly MarketEventChannel[];
-}
+export type UnsubscribeChannelsMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "unsubscribe_channels" }
+>;
 
-/** Subscribes the client to live market summaries. */
-export interface SubscribeMarketSummariesMessage {
-  readonly type: "subscribe_market_summaries";
-  readonly symbols: readonly string[];
-}
+export type SubscribeMarketSummariesMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "subscribe_market_summaries" }
+>;
 
-/** Unsubscribes the client from live market summaries. */
-export interface UnsubscribeMarketSummariesMessage {
-  readonly type: "unsubscribe_market_summaries";
-  readonly symbols: readonly string[];
-}
+export type UnsubscribeMarketSummariesMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "unsubscribe_market_summaries" }
+>;
 
-/** Subscribes the client to live quotes for symbols. */
-export interface SubscribeQuotesMessage {
-  readonly type: "subscribe_quotes";
-  readonly quotes: readonly MarketDataRequest[];
-}
+export type SubscribeQuotesMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "subscribe_quotes" }
+>;
 
-/** Unsubscribes the client from live quotes for symbols. */
-export interface UnsubscribeQuotesMessage {
-  readonly type: "unsubscribe_quotes";
-  readonly quotes: readonly MarketDataRequest[];
-}
+export type UnsubscribeQuotesMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "unsubscribe_quotes" }
+>;
 
-/** Subscribes the client to live trades for symbols. */
-export interface SubscribeTradesMessage {
-  readonly type: "subscribe_trades";
-  readonly trades: readonly MarketDataRequest[];
-}
+export type SubscribeTradesMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "subscribe_trades" }
+>;
 
-/** Unsubscribes the client from live trades for symbols. */
-export interface UnsubscribeTradesMessage {
-  readonly type: "unsubscribe_trades";
-  readonly trades: readonly MarketDataRequest[];
-}
+export type UnsubscribeTradesMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "unsubscribe_trades" }
+>;
 
-/** Subscribes the client to venue-aware order books. */
-export interface SubscribeOrderBooksMessage {
-  readonly type: "subscribe_order_books";
-  readonly orderBooks: readonly MarketDataRequest[];
-}
+export type SubscribeOrderBooksMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "subscribe_order_books" }
+>;
 
-/** Unsubscribes the client from venue-aware order books. */
-export interface UnsubscribeOrderBooksMessage {
-  readonly type: "unsubscribe_order_books";
-  readonly orderBooks: readonly MarketDataRequest[];
-}
+export type UnsubscribeOrderBooksMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "unsubscribe_order_books" }
+>;
 
-/** Subscribes the client to live bars. */
-export interface SubscribeBarsMessage {
-  readonly type: "subscribe_bars";
-  readonly bars: readonly BarsHydrationRequest[];
-}
+export type SubscribeBarsMessage = Extract<RelayClientMessage, { readonly type: "subscribe_bars" }>;
 
-/** Unsubscribes the client from live bars. */
-export interface UnsubscribeBarsMessage {
-  readonly type: "unsubscribe_bars";
-  readonly bars: readonly BarsHydrationRequest[];
-}
+export type UnsubscribeBarsMessage = Extract<
+  RelayClientMessage,
+  { readonly type: "unsubscribe_bars" }
+>;
 
-/** Requests an initial hydration payload. */
-export interface HydrateMessage {
-  readonly type: "hydrate";
-  readonly request: MarketDataHydrationRequest;
-}
+export type HydrateMessage = Extract<RelayClientMessage, { readonly type: "hydrate" }>;
 
-/** Parses a raw WebSocket payload into a Relay client message. */
+/** Parses and validates one raw WebSocket client message. */
 export function parseRelayClientMessage(rawMessage: string): RelayClientMessage {
+  const byteLength = Buffer.byteLength(rawMessage, "utf8");
+
+  if (byteLength > RELAY_CLIENT_MESSAGE_MAX_BYTES) {
+    throw new RangeError(
+      `Relay client messages cannot exceed ${String(RELAY_CLIENT_MESSAGE_MAX_BYTES)} bytes.`,
+    );
+  }
+
   const parsedMessage: unknown = JSON.parse(rawMessage);
 
-  if (!isRecord(parsedMessage)) {
-    throw new Error("Client message must be an object.");
-  }
-
-  switch (parsedMessage.type) {
-    case "subscribe_channels":
-    case "unsubscribe_channels":
-      return parseChannelsMessage(parsedMessage);
-
-    case "subscribe_market_summaries":
-    case "unsubscribe_market_summaries":
-      return parseSymbolsMessage(parsedMessage);
-
-    case "subscribe_quotes":
-    case "unsubscribe_quotes":
-      return parseMarketDataRequestsMessage(parsedMessage, "quotes");
-
-    case "subscribe_trades":
-    case "unsubscribe_trades":
-      return parseMarketDataRequestsMessage(parsedMessage, "trades");
-
-    case "subscribe_order_books":
-    case "unsubscribe_order_books":
-      return parseOrderBooksMessage(parsedMessage);
-
-    case "subscribe_bars":
-    case "unsubscribe_bars":
-      return parseBarsMessage(parsedMessage);
-
-    case "hydrate":
-      return parseHydrateMessage(parsedMessage);
-
-    default:
-      throw new Error("Unsupported client message type.");
-  }
+  return relayClientMessageSchema.parse(parsedMessage);
 }
 
-function parseChannelsMessage(
-  message: Record<string, unknown>,
-): SubscribeChannelsMessage | UnsubscribeChannelsMessage {
-  if (!Array.isArray(message.channels)) {
-    throw new Error("Client message channels must be an array.");
-  }
+function addDuplicateIssues<T>(
+  values: readonly T[],
+  createKey: (value: T) => string,
+  context: z.RefinementCtx,
+): void {
+  const keys = new Set<string>();
 
-  return {
-    type: message.type as "subscribe_channels" | "unsubscribe_channels",
-    channels: message.channels as readonly MarketEventChannel[],
-  };
-}
+  values.forEach((value, index) => {
+    const key = createKey(value);
 
-function parseSymbolsMessage(
-  message: Record<string, unknown>,
-): SubscribeMarketSummariesMessage | UnsubscribeMarketSummariesMessage {
-  if (!isStringArray(message.symbols)) {
-    throw new Error("Client message symbols must be an array of strings.");
-  }
-
-  return {
-    type: message.type as "subscribe_market_summaries" | "unsubscribe_market_summaries",
-    symbols: message.symbols,
-  };
-}
-
-function parseMarketDataRequestsMessage(
-  message: Record<string, unknown>,
-  field: "quotes" | "trades",
-):
-  | SubscribeQuotesMessage
-  | UnsubscribeQuotesMessage
-  | SubscribeTradesMessage
-  | UnsubscribeTradesMessage {
-  const requests = message[field];
-
-  if (!Array.isArray(requests) || !requests.every(isMarketDataRequest)) {
-    throw new Error(`Client message ${field} must be an array of market data requests.`);
-  }
-
-  if (field === "quotes") {
-    return {
-      type: message.type as "subscribe_quotes" | "unsubscribe_quotes",
-      quotes: requests,
-    };
-  }
-
-  return {
-    type: message.type as "subscribe_trades" | "unsubscribe_trades",
-    trades: requests,
-  };
-}
-
-function parseOrderBooksMessage(
-  message: Record<string, unknown>,
-): SubscribeOrderBooksMessage | UnsubscribeOrderBooksMessage {
-  if (!Array.isArray(message.orderBooks) || !message.orderBooks.every(isMarketDataRequest)) {
-    throw new Error("Client message orderBooks must be an array of order-book requests.");
-  }
-
-  return {
-    type: message.type as "subscribe_order_books" | "unsubscribe_order_books",
-    orderBooks: message.orderBooks,
-  };
-}
-
-function parseBarsMessage(
-  message: Record<string, unknown>,
-): SubscribeBarsMessage | UnsubscribeBarsMessage {
-  if (!Array.isArray(message.bars) || !message.bars.every(isBarsHydrationRequest)) {
-    throw new Error("Client message bars must be an array of bar requests.");
-  }
-
-  return {
-    type: message.type as "subscribe_bars" | "unsubscribe_bars",
-    bars: message.bars,
-  };
-}
-
-function parseHydrateMessage(message: Record<string, unknown>): HydrateMessage {
-  if (!isMarketDataHydrationRequest(message.request)) {
-    throw new Error("Client message request must be a hydration request.");
-  }
-
-  return {
-    type: "hydrate",
-    request: message.request,
-  };
-}
-
-function isBarsHydrationRequest(value: unknown): value is BarsHydrationRequest {
-  return isRecord(value) && isMarketDataRequest(value) && typeof value.timeframe === "string";
-}
-
-function isMarketDataRequest(value: unknown): value is MarketDataRequest {
-  return (
-    isRecord(value) &&
-    typeof value.symbol === "string" &&
-    (value.venue === undefined || typeof value.venue === "string")
-  );
-}
-
-function isMarketDataHydrationRequest(value: unknown): value is MarketDataHydrationRequest {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  if (value.symbols !== undefined && !isStringArray(value.symbols)) {
-    return false;
-  }
-
-  if (value.bars !== undefined) {
-    if (!Array.isArray(value.bars) || !value.bars.every(isBarsHydrationRequest)) {
-      return false;
+    if (keys.has(key)) {
+      context.addIssue({
+        code: "custom",
+        path: [index],
+        message: "Client message entries must be unique.",
+      });
     }
-  }
 
-  if (value.quotes !== undefined) {
-    if (!Array.isArray(value.quotes) || !value.quotes.every(isMarketDataRequest)) {
-      return false;
-    }
-  }
-
-  if (value.trades !== undefined) {
-    if (!Array.isArray(value.trades) || !value.trades.every(isMarketDataRequest)) {
-      return false;
-    }
-  }
-
-  if (value.orderBooks !== undefined) {
-    if (!Array.isArray(value.orderBooks) || !value.orderBooks.every(isMarketDataRequest)) {
-      return false;
-    }
-  }
-
-  if (
-    value.includeMarketSummaries !== undefined &&
-    typeof value.includeMarketSummaries !== "boolean"
-  ) {
-    return false;
-  }
-
-  if (value.includeMarketClock !== undefined && typeof value.includeMarketClock !== "boolean") {
-    return false;
-  }
-
-  return true;
+    keys.add(key);
+  });
 }

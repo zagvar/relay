@@ -16,10 +16,10 @@ describe("MemoryMarketDataCache", () => {
       type: "quote",
       symbol: "AAPL",
       assetClass: "equity",
-      bidPrice: 195.1,
-      bidQuantity: 200,
-      askPrice: 195.12,
-      askQuantity: 100,
+      bidPrice: "195.1",
+      bidQuantity: "200",
+      askPrice: "195.12",
+      askQuantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -34,8 +34,8 @@ describe("MemoryMarketDataCache", () => {
       type: "trade",
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
-      quantity: 100,
+      price: "195.12",
+      quantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -51,10 +51,10 @@ describe("MemoryMarketDataCache", () => {
       symbol: "BTC/USDT",
       assetClass: "crypto",
       venue: "COINBASE",
-      bidPrice: 65_000,
-      bidQuantity: 1,
-      askPrice: 65_001,
-      askQuantity: 1,
+      bidPrice: "65000",
+      bidQuantity: "1",
+      askPrice: "65001",
+      askQuantity: "1",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
     const binanceTrade: MarketTrade = {
@@ -62,8 +62,8 @@ describe("MemoryMarketDataCache", () => {
       symbol: "BTC/USDT",
       assetClass: "crypto",
       venue: "BINANCE",
-      price: 65_000.5,
-      quantity: 0.1,
+      price: "65000.5",
+      quantity: "0.1",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -91,8 +91,8 @@ describe("MemoryMarketDataCache", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bids: [{ price: 65_000, quantity: 1.25 }],
-      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      bids: [{ price: "65000", quantity: "1.25" }],
+      asks: [{ price: "65000.5", quantity: "0.8" }],
       timestamp: "2026-01-01T14:30:00.000Z",
       sequence: 100,
     };
@@ -116,8 +116,8 @@ describe("MemoryMarketDataCache", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bids: [{ price: 65_000, quantity: 1.25 }],
-      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      bids: [{ price: "65000", quantity: "1.25" }],
+      asks: [{ price: "65000.5", quantity: "0.8" }],
       timestamp: "2026-01-01T14:30:00.000Z",
       sequence: 100,
     };
@@ -144,8 +144,8 @@ describe("MemoryMarketDataCache", () => {
       AAPL: {
         symbol: "AAPL",
         assetClass: "equity",
-        price: 195.12,
-        previousClose: 190,
+        price: "195.12",
+        previousClose: "190",
       },
     };
 
@@ -154,12 +154,28 @@ describe("MemoryMarketDataCache", () => {
     expect(await cache.getMarketSummaries()).toEqual(marketSummaries);
   });
 
+  it("rejects market-summary batches whose keys disagree with their values", async () => {
+    const cache = new MemoryMarketDataCache();
+
+    await expect(
+      cache.setMarketSummaries({
+        MSFT: {
+          symbol: "AAPL",
+          assetClass: "equity",
+          price: "195.12",
+        },
+      }),
+    ).rejects.toMatchObject({ name: "ZodError" });
+
+    await expect(cache.getMarketSummaries()).resolves.toEqual({});
+  });
+
   it("stores and returns one market summary", async () => {
     const cache = new MemoryMarketDataCache();
     const marketSummary: MarketSummary = {
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
+      price: "195.12",
     };
 
     await cache.setMarketSummary(marketSummary);
@@ -174,11 +190,11 @@ describe("MemoryMarketDataCache", () => {
       symbol: "AAPL",
       assetClass: "equity",
       timeframe: "1Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -199,20 +215,20 @@ describe("MemoryMarketDataCache", () => {
       baseAsset: "BTC",
       quoteAsset: "USDT",
       timeframe: "1Min",
-      open: 65_000,
-      high: 65_100,
-      low: 64_950,
-      close: 65_050,
-      volume: 12.5,
+      open: "65000",
+      high: "65100",
+      low: "64950",
+      close: "65050",
+      volume: "12.5",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     const binanceBar: MarketBar = {
       ...coinbaseBar,
       venue: "BINANCE",
-      high: 65_120,
-      close: 65_075,
-      volume: 18.25,
+      high: "65120",
+      close: "65075",
+      volume: "18.25",
     };
 
     await cache.appendBar(coinbaseBar);
@@ -242,6 +258,156 @@ describe("MemoryMarketDataCache", () => {
     ).resolves.toEqual([]);
   });
 
+  it("orders bars chronologically regardless of insertion order", async () => {
+    const cache = new MemoryMarketDataCache();
+
+    const laterBar: MarketBar = {
+      type: "bar",
+      symbol: "AAPL",
+      assetClass: "equity",
+      timeframe: "1Min",
+      open: "195",
+      high: "197",
+      low: "194",
+      close: "196",
+      volume: "1100",
+      timestamp: "2026-01-01T14:31:00.000Z",
+    };
+
+    const earlierBar: MarketBar = {
+      ...laterBar,
+      open: "194",
+      high: "196",
+      low: "193",
+      close: "195",
+      volume: "1000",
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await cache.appendBar(laterBar);
+    await cache.appendBar(earlierBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "AAPL",
+        timeframe: "1Min",
+      }),
+    ).resolves.toEqual([earlierBar, laterBar]);
+  });
+
+  it("replaces a bar with the same timestamp", async () => {
+    const cache = new MemoryMarketDataCache();
+
+    const initialBar: MarketBar = {
+      type: "bar",
+      symbol: "AAPL",
+      assetClass: "equity",
+      timeframe: "1Min",
+      open: "194",
+      high: "196",
+      low: "193",
+      close: "195",
+      volume: "1000",
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const correctedBar: MarketBar = {
+      ...initialBar,
+      high: "197",
+      close: "196",
+      volume: "1200",
+    };
+
+    await cache.appendBar(initialBar);
+    await cache.appendBar(correctedBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "AAPL",
+        timeframe: "1Min",
+      }),
+    ).resolves.toEqual([correctedBar]);
+  });
+
+  it("applies inclusive bar ranges", async () => {
+    const cache = new MemoryMarketDataCache();
+
+    const firstBar: MarketBar = {
+      type: "bar",
+      symbol: "AAPL",
+      assetClass: "equity",
+      timeframe: "1Min",
+      open: "194",
+      high: "196",
+      low: "193",
+      close: "195",
+      volume: "1000",
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const secondBar: MarketBar = {
+      ...firstBar,
+      timestamp: "2026-01-01T14:31:00.000Z",
+    };
+
+    const thirdBar: MarketBar = {
+      ...firstBar,
+      timestamp: "2026-01-01T14:32:00.000Z",
+    };
+
+    await cache.appendBar(firstBar);
+    await cache.appendBar(secondBar);
+    await cache.appendBar(thirdBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "AAPL",
+        timeframe: "1Min",
+        start: secondBar.timestamp,
+        end: thirdBar.timestamp,
+      }),
+    ).resolves.toEqual([secondBar, thirdBar]);
+  });
+
+  it("returns the most recent limited bars chronologically", async () => {
+    const cache = new MemoryMarketDataCache();
+
+    const firstBar: MarketBar = {
+      type: "bar",
+      symbol: "AAPL",
+      assetClass: "equity",
+      timeframe: "1Min",
+      open: "194",
+      high: "196",
+      low: "193",
+      close: "195",
+      volume: "1000",
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    const secondBar: MarketBar = {
+      ...firstBar,
+      timestamp: "2026-01-01T14:31:00.000Z",
+    };
+
+    const thirdBar: MarketBar = {
+      ...firstBar,
+      timestamp: "2026-01-01T14:32:00.000Z",
+    };
+
+    await cache.appendBar(firstBar);
+    await cache.appendBar(secondBar);
+    await cache.appendBar(thirdBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "AAPL",
+        timeframe: "1Min",
+        limit: 2,
+      }),
+    ).resolves.toEqual([secondBar, thirdBar]);
+  });
+
   it("stores and returns market clock", async () => {
     const cache = new MemoryMarketDataCache();
     const clock: MarketClock = {
@@ -261,8 +427,8 @@ describe("MemoryMarketDataCache", () => {
       type: "trade",
       symbol: "aapl",
       assetClass: "equity",
-      price: 195.12,
-      quantity: 100,
+      price: "195.12",
+      quantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -278,11 +444,11 @@ describe("MemoryMarketDataCache", () => {
       symbol: "aapl",
       assetClass: "equity",
       timeframe: "1Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 

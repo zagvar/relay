@@ -13,8 +13,10 @@
     "check": "pnpm --recursive check",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "pnpm --recursive test",
     "test:run": "pnpm --recursive test:run",
+    "verify": "pnpm format:check && pnpm build && pnpm check && pnpm lint && pnpm test:run",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish"

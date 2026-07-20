@@ -1,4 +1,14 @@
-import { normalizeSymbol } from "@zagvar/relay-core";
+import {
+  barsRequestSchema,
+  marketBarSchema,
+  marketClockSchema,
+  marketQuoteSchema,
+  marketSummaryBatchSchema,
+  marketSummarySchema,
+  marketTradeSchema,
+  normalizeSymbol,
+  orderBookSnapshotSchema,
+} from "@zagvar/relay-core";
 import type {
   BarsRequest,
   MarketBar,
@@ -47,9 +57,14 @@ export class RedisMarketDataCache implements MarketDataCache {
       options.prefix === undefined
         ? new RelayRedisKeys()
         : new RelayRedisKeys({ prefix: options.prefix });
+
+    assertPositiveSafeInteger(options.marketSummaryTtlSeconds, "marketSummaryTtlSeconds");
+
+    assertPositiveSafeInteger(options.marketClockTtlSeconds, "marketClockTtlSeconds");
+
     this.#marketSummaryTtlSeconds = options.marketSummaryTtlSeconds;
     this.#marketClockTtlSeconds = options.marketClockTtlSeconds;
-    this.#barRetention = options.barRetention;
+    this.#barRetention = validateBarRetentionOptions(options.barRetention);
   }
 
   async setLatestQuote(quote: MarketQuote): Promise<void> {
@@ -66,7 +81,7 @@ export class RedisMarketDataCache implements MarketDataCache {
       this.#keys.marketDataField(request),
     );
 
-    return value === null ? undefined : (JSON.parse(value) as MarketQuote);
+    return value === null ? undefined : marketQuoteSchema.parse(parseStoredJson(value));
   }
 
   async setLatestTrade(trade: MarketTrade): Promise<void> {
@@ -83,7 +98,7 @@ export class RedisMarketDataCache implements MarketDataCache {
       this.#keys.marketDataField(request),
     );
 
-    return value === null ? undefined : (JSON.parse(value) as MarketTrade);
+    return value === null ? undefined : marketTradeSchema.parse(parseStoredJson(value));
   }
 
   async setOrderBookSnapshot(snapshot: OrderBookSnapshot): Promise<void> {
@@ -100,7 +115,7 @@ export class RedisMarketDataCache implements MarketDataCache {
   async getOrderBookSnapshot(request: MarketDataRequest): Promise<OrderBookSnapshot | undefined> {
     const value = await this.#client.get(this.#keys.orderBookSnapshot(request));
 
-    return value === null ? undefined : (JSON.parse(value) as OrderBookSnapshot);
+    return value === null ? undefined : orderBookSnapshotSchema.parse(parseStoredJson(value));
   }
 
   async setMarketSummary(marketSummary: MarketSummary): Promise<void> {
@@ -116,14 +131,16 @@ export class RedisMarketDataCache implements MarketDataCache {
   async getMarketSummary(symbol: string): Promise<MarketSummary | undefined> {
     const value = await this.#client.hGet(this.#keys.marketSummaries(), normalizeSymbol(symbol));
 
-    return value === null ? undefined : (JSON.parse(value) as MarketSummary);
+    return value === null ? undefined : marketSummarySchema.parse(parseStoredJson(value));
   }
 
   async setMarketSummaries(
     marketSummaries: Readonly<Record<string, MarketSummary>>,
   ): Promise<void> {
+    const parsedMarketSummaries = marketSummaryBatchSchema.parse(marketSummaries);
+
     await Promise.all(
-      Object.entries(marketSummaries).map(async ([symbol, marketSummary]) => {
+      Object.entries(parsedMarketSummaries).map(async ([symbol, marketSummary]) => {
         await this.#client.hSet(
           this.#keys.marketSummaries(),
           normalizeSymbol(symbol),
@@ -139,30 +156,69 @@ export class RedisMarketDataCache implements MarketDataCache {
     const values = await this.#client.hGetAll(this.#keys.marketSummaries());
 
     return Object.fromEntries(
-      Object.entries(values).map(([symbol, value]) => [symbol, JSON.parse(value) as MarketSummary]),
+      Object.entries(values).map(([symbol, value]) => [
+        symbol,
+        marketSummarySchema.parse(parseStoredJson(value)),
+      ]),
     );
   }
 
   async appendBar(bar: MarketBar): Promise<void> {
-    const key = this.#keys.bars(bar);
-    const score = new Date(bar.timestamp).getTime();
-    const retentionPolicy = this.#getBarRetentionPolicy(bar.timeframe);
+    const parsedBar = marketBarSchema.parse(bar);
+    const key = this.#keys.bars(parsedBar);
+    const score = Date.parse(parsedBar.timestamp);
+    const retentionPolicy = this.#getBarRetentionPolicy(parsedBar.timeframe);
+    const transaction = this.#client.multi();
 
-    await this.#client.zAdd(key, [{ score, value: JSON.stringify(bar) }]);
+    transaction.zRemRangeByScore(key, score, score);
+
+    transaction.zAdd(key, [
+      {
+        score,
+        value: JSON.stringify(parsedBar),
+      },
+    ]);
 
     if (retentionPolicy.maxBars !== undefined) {
-      await this.#client.zRemRangeByRank(key, 0, -(retentionPolicy.maxBars + 1));
+      transaction.zRemRangeByRank(key, 0, -(retentionPolicy.maxBars + 1));
     }
 
     if (retentionPolicy.ttlSeconds !== undefined) {
-      await this.#client.expire(key, retentionPolicy.ttlSeconds);
+      transaction.expire(key, retentionPolicy.ttlSeconds);
     }
+
+    await transaction.exec();
   }
 
   async getBars(request: BarsRequest): Promise<readonly MarketBar[]> {
-    const values = await this.#client.zRange(this.#keys.bars(request), 0, -1);
+    const parsedRequest = barsRequestSchema.parse(request);
+    const key = this.#keys.bars(parsedRequest);
 
-    return values.map((value) => JSON.parse(value) as MarketBar);
+    const minimumScore =
+      parsedRequest.start === undefined ? "-inf" : Date.parse(parsedRequest.start);
+
+    const maximumScore = parsedRequest.end === undefined ? "+inf" : Date.parse(parsedRequest.end);
+
+    if (parsedRequest.limit === undefined) {
+      const values = await this.#client.zRange(key, minimumScore, maximumScore, {
+        BY: "SCORE",
+      });
+
+      return values.map((value) => marketBarSchema.parse(parseStoredJson(value)));
+    }
+
+    const descendingValues = await this.#client.zRange(key, maximumScore, minimumScore, {
+      BY: "SCORE",
+      REV: true,
+      LIMIT: {
+        offset: 0,
+        count: parsedRequest.limit,
+      },
+    });
+
+    return [...descendingValues]
+      .reverse()
+      .map((value) => marketBarSchema.parse(parseStoredJson(value)));
   }
 
   async setMarketClock(clock: MarketClock): Promise<void> {
@@ -172,7 +228,7 @@ export class RedisMarketDataCache implements MarketDataCache {
   async getMarketClock(): Promise<MarketClock | undefined> {
     const value = await this.#client.get(this.#keys.marketClock());
 
-    return value === null ? undefined : (JSON.parse(value) as MarketClock);
+    return value === null ? undefined : marketClockSchema.parse(parseStoredJson(value));
   }
 
   async #setJson(key: string, value: unknown, ttlSeconds: number | undefined): Promise<void> {
@@ -200,4 +256,74 @@ export class RedisMarketDataCache implements MarketDataCache {
       ...this.#barRetention?.byTimeframe?.[timeframe],
     };
   }
+}
+
+function validateBarRetentionOptions(
+  options: BarRetentionOptions | undefined,
+): BarRetentionOptions | undefined {
+  if (options === undefined) {
+    return undefined;
+  }
+
+  const defaultPolicy =
+    options.default === undefined
+      ? undefined
+      : validateBarRetentionPolicy(options.default, "barRetention.default");
+
+  const byTimeframe =
+    options.byTimeframe === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(options.byTimeframe).map(([timeframe, policy]) => {
+            if (timeframe.length === 0 || timeframe.length > 32 || timeframe !== timeframe.trim()) {
+              throw new TypeError(
+                "barRetention.byTimeframe keys must be non-blank identifiers without surrounding whitespace.",
+              );
+            }
+
+            return [
+              timeframe,
+              validateBarRetentionPolicy(policy, `barRetention.byTimeframe.${timeframe}`),
+            ];
+          }),
+        );
+
+  return {
+    ...(defaultPolicy === undefined ? {} : { default: defaultPolicy }),
+    ...(byTimeframe === undefined ? {} : { byTimeframe }),
+  };
+}
+
+function validateBarRetentionPolicy(
+  policy: BarRetentionPolicy,
+  fieldName: string,
+): BarRetentionPolicy {
+  assertPositiveSafeInteger(policy.maxBars, `${fieldName}.maxBars`, Number.MAX_SAFE_INTEGER - 1);
+
+  assertPositiveSafeInteger(policy.ttlSeconds, `${fieldName}.ttlSeconds`);
+
+  return {
+    ...(policy.maxBars === undefined ? {} : { maxBars: policy.maxBars }),
+    ...(policy.ttlSeconds === undefined ? {} : { ttlSeconds: policy.ttlSeconds }),
+  };
+}
+
+function assertPositiveSafeInteger(
+  value: number | undefined,
+  fieldName: string,
+  maximum = Number.MAX_SAFE_INTEGER,
+): void {
+  if (value === undefined) {
+    return;
+  }
+
+  if (!Number.isSafeInteger(value) || value <= 0 || value > maximum) {
+    throw new RangeError(
+      `${fieldName} must be a positive safe integer no greater than ${String(maximum)}.`,
+    );
+  }
+}
+
+function parseStoredJson(value: string): unknown {
+  return JSON.parse(value) as unknown;
 }

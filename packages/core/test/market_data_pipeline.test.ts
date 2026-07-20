@@ -19,8 +19,8 @@ const orderBookSnapshot: OrderBookSnapshot = {
   venue: "COINBASE",
   baseAsset: "BTC",
   quoteAsset: "USDT",
-  bids: [{ price: 65_000, quantity: 1.25 }],
-  asks: [{ price: 65_001, quantity: 0.8 }],
+  bids: [{ price: "65000", quantity: "1.25" }],
+  asks: [{ price: "65001", quantity: "0.8" }],
   timestamp: "2026-01-01T14:30:00.000Z",
   sequence: 100,
 };
@@ -32,8 +32,8 @@ const orderBookUpdate: OrderBookUpdate = {
   venue: "COINBASE",
   baseAsset: "BTC",
   quoteAsset: "USDT",
-  bids: [{ price: 65_000, quantity: 2 }],
-  asks: [{ price: 65_001, quantity: 0 }],
+  bids: [{ price: "65000", quantity: "2" }],
+  asks: [{ price: "65001", quantity: "0" }],
   timestamp: "2026-01-01T14:30:01.000Z",
   sequence: 101,
   previousSequence: 100,
@@ -55,8 +55,8 @@ describe("MarketDataPipeline", () => {
       type: "trade",
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
-      quantity: 100,
+      price: "195.12",
+      quantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -85,10 +85,10 @@ describe("MarketDataPipeline", () => {
       type: "quote",
       symbol: "AAPL",
       assetClass: "equity",
-      bidPrice: 195.1,
-      bidQuantity: 200,
-      askPrice: 195.12,
-      askQuantity: 100,
+      bidPrice: "195.1",
+      bidQuantity: "200",
+      askPrice: "195.12",
+      askQuantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -118,11 +118,11 @@ describe("MarketDataPipeline", () => {
       symbol: "AAPL",
       assetClass: "equity",
       timeframe: "1Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -191,7 +191,7 @@ describe("MarketDataPipeline", () => {
       }),
     ).resolves.toEqual({
       ...orderBookSnapshot,
-      bids: [{ price: 65_000, quantity: 2 }],
+      bids: [{ price: "65000", quantity: "2" }],
       asks: [],
       timestamp: "2026-01-01T14:30:01.000Z",
       sequence: 101,
@@ -261,8 +261,8 @@ describe("MarketDataPipeline", () => {
       AAPL: {
         symbol: "AAPL",
         assetClass: "equity",
-        price: 195.12,
-        previousClose: 190,
+        price: "195.12",
+        previousClose: "190",
       },
     };
 
@@ -285,8 +285,8 @@ describe("MarketDataPipeline", () => {
     const marketSummary: MarketSummary = {
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
-      previousClose: 190,
+      price: "195.12",
+      previousClose: "190",
     };
 
     await eventBus.subscribe(MARKET_EVENT_CHANNEL.marketSummary, (message) => {
@@ -330,5 +330,107 @@ describe("MarketDataPipeline", () => {
         data: clock,
       },
     ]);
+  });
+
+  it("rejects invalid runtime events before cache or publication", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({
+      cache,
+      eventBus,
+    });
+    const publishedMessages: unknown[] = [];
+
+    await eventBus.subscribe(MARKET_EVENT_CHANNEL.trade, (message) => {
+      publishedMessages.push(message);
+    });
+
+    const invalidTrade = {
+      type: "trade",
+      symbol: "AAPL",
+      assetClass: "equity",
+      price: "0",
+      quantity: "100",
+      timestamp: "2026-01-01T14:30:00.000Z",
+    } as unknown as MarketTrade;
+
+    await expect(pipeline.processEvent(invalidTrade)).rejects.toMatchObject({
+      name: "ZodError",
+    });
+
+    await expect(cache.getLatestTrade({ symbol: "AAPL" })).resolves.toBeUndefined();
+
+    expect(publishedMessages).toEqual([]);
+  });
+
+  it("rejects summary batches whose keys disagree with their values", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({
+      cache,
+      eventBus,
+    });
+
+    const marketSummary: MarketSummary = {
+      symbol: "AAPL",
+      assetClass: "equity",
+      price: "195.12",
+    };
+
+    await expect(
+      pipeline.processMarketSummaries({
+        MSFT: marketSummary,
+      }),
+    ).rejects.toMatchObject({
+      name: "ZodError",
+    });
+
+    await expect(cache.getMarketSummaries()).resolves.toEqual({});
+  });
+
+  it("rejects duplicate normalized summary keys", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({
+      cache,
+      eventBus,
+    });
+
+    const marketSummary: MarketSummary = {
+      symbol: "AAPL",
+      assetClass: "equity",
+      price: "195.12",
+    };
+
+    await expect(
+      pipeline.processMarketSummaries({
+        AAPL: marketSummary,
+        aapl: marketSummary,
+      }),
+    ).rejects.toMatchObject({
+      name: "ZodError",
+    });
+
+    await expect(cache.getMarketSummaries()).resolves.toEqual({});
+  });
+
+  it("rejects invalid clocks before cache or publication", async () => {
+    const cache = new MemoryMarketDataCache();
+    const eventBus = new MemoryRelayEventBus();
+    const pipeline = new MarketDataPipeline({
+      cache,
+      eventBus,
+    });
+
+    const invalidClock = {
+      isOpen: true,
+      timestamp: "not-a-timestamp",
+    } as unknown as MarketClock;
+
+    await expect(pipeline.processMarketClock(invalidClock)).rejects.toMatchObject({
+      name: "ZodError",
+    });
+
+    await expect(cache.getMarketClock()).resolves.toBeUndefined();
   });
 });

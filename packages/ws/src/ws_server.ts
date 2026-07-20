@@ -1,8 +1,13 @@
 import type { MarketDataHydrator, RelayEventBus } from "@zagvar/relay-core";
 import WebSocket, { WebSocketServer, type RawData, type ServerOptions } from "ws";
-import { RelayClientSession } from "./client_session.js";
-import type { RelayClientSessionOptions } from "./client_session.js";
+import {
+  RelayClientSession,
+  resolveRelayClientMaxBufferedBytes,
+  resolveRelayClientMaxSubscriptions,
+  type RelayClientSessionOptions,
+} from "./client_session.js";
 import type { RelaySocket } from "./socket.js";
+import { RELAY_CLIENT_MESSAGE_MAX_BYTES } from "./client_message.js";
 
 /** Handles runtime errors produced by a Relay Node `ws` connection. */
 export type RelayNodeWsErrorHandler = (error: unknown) => void;
@@ -13,6 +18,10 @@ export interface AttachRelayNodeWsConnectionOptions {
   readonly eventBus: RelayEventBus;
   readonly hydrator?: MarketDataHydrator;
   readonly onError?: RelayNodeWsErrorHandler;
+  /** Maximum cumulative subscriptions retained by this connection. */
+  readonly maxSubscriptions?: number;
+  /** Maximum outbound bytes queued per connection. */
+  readonly maxBufferedBytes?: number;
 }
 
 /** Options for creating a Relay-backed Node `ws` server. */
@@ -20,6 +29,10 @@ export interface RelayNodeWsServerOptions extends ServerOptions {
   readonly eventBus: RelayEventBus;
   readonly hydrator?: MarketDataHydrator;
   readonly onError?: RelayNodeWsErrorHandler;
+  /** Maximum cumulative subscriptions retained by each connection. */
+  readonly maxSubscriptions?: number;
+  /** Maximum outbound bytes queued per connection. */
+  readonly maxBufferedBytes?: number;
 }
 
 class WsRelaySocket implements RelaySocket {
@@ -27,6 +40,10 @@ class WsRelaySocket implements RelaySocket {
 
   constructor(websocket: WebSocket) {
     this.#websocket = websocket;
+  }
+
+  get bufferedAmount(): number {
+    return this.#websocket.bufferedAmount;
   }
 
   send(message: string): Promise<void> {
@@ -44,6 +61,17 @@ class WsRelaySocket implements RelaySocket {
         resolve();
       });
     });
+  }
+
+  close(code?: number, reason?: string): void {
+    if (
+      this.#websocket.readyState === WebSocket.CLOSING ||
+      this.#websocket.readyState === WebSocket.CLOSED
+    ) {
+      return;
+    }
+
+    this.#websocket.close(code, reason);
   }
 }
 
@@ -81,16 +109,34 @@ export async function attachRelayNodeWsConnection(
 }
 
 /** Creates a Node `ws` server that starts a Relay session for every connection. */
-export function createRelayNodeWsServer(
-  options: RelayNodeWsServerOptions,
-): WebSocketServer {
-  const { eventBus, hydrator, onError, ...serverOptions } = options;
-  const server = new WebSocketServer(serverOptions);
+export function createRelayNodeWsServer(options: RelayNodeWsServerOptions): WebSocketServer {
+  const {
+    eventBus,
+    hydrator,
+    onError,
+    maxPayload: configuredMaxPayload,
+    maxSubscriptions: configuredMaxSubscriptions,
+    maxBufferedBytes: configuredMaxBufferedBytes,
+    ...serverOptions
+  } = options;
+
+  const maxPayload = resolveMaxPayload(configuredMaxPayload);
+
+  const maxSubscriptions = resolveRelayClientMaxSubscriptions(configuredMaxSubscriptions);
+
+  const maxBufferedBytes = resolveRelayClientMaxBufferedBytes(configuredMaxBufferedBytes);
+
+  const server = new WebSocketServer({
+    ...serverOptions,
+    maxPayload,
+  });
 
   server.on("connection", (websocket) => {
     void attachRelayNodeWsConnection({
       websocket,
       eventBus,
+      maxSubscriptions,
+      maxBufferedBytes,
       ...(hydrator === undefined ? {} : { hydrator }),
       ...(onError === undefined ? {} : { onError }),
     }).catch((error: unknown) => {
@@ -111,17 +157,21 @@ function createSessionOptions(
 ): RelayClientSessionOptions {
   const socket = new WsRelaySocket(options.websocket);
 
-  if (options.hydrator === undefined) {
-    return {
-      socket,
-      eventBus: options.eventBus,
-    };
-  }
-
   return {
     socket,
     eventBus: options.eventBus,
-    hydrator: options.hydrator,
+    ...(options.hydrator === undefined ? {} : { hydrator: options.hydrator }),
+    ...(options.maxSubscriptions === undefined
+      ? {}
+      : {
+          maxSubscriptions: options.maxSubscriptions,
+        }),
+    ...(options.maxBufferedBytes === undefined
+      ? {}
+      : {
+          maxBufferedBytes: options.maxBufferedBytes,
+        }),
+    ...(options.onError === undefined ? {} : { onError: options.onError }),
   };
 }
 
@@ -135,4 +185,22 @@ function rawDataToText(data: RawData): string {
   }
 
   return data.toString("utf8");
+}
+
+function resolveMaxPayload(configuredMaxPayload: number | undefined): number {
+  const maxPayload = configuredMaxPayload ?? RELAY_CLIENT_MESSAGE_MAX_BYTES;
+
+  if (
+    !Number.isSafeInteger(maxPayload) ||
+    maxPayload <= 0 ||
+    maxPayload > RELAY_CLIENT_MESSAGE_MAX_BYTES
+  ) {
+    throw new RangeError(
+      `maxPayload must be a positive safe integer no greater than ${String(
+        RELAY_CLIENT_MESSAGE_MAX_BYTES,
+      )}.`,
+    );
+  }
+
+  return maxPayload;
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseRelayClientMessage } from "../src/client_message.js";
+import { ZodError } from "zod";
+import {
+  RELAY_CLIENT_MESSAGE_MAX_BYTES,
+  RELAY_CLIENT_MESSAGE_MAX_ITEMS,
+  parseRelayClientMessage,
+} from "../src/client_message.js";
 
 describe("parseRelayClientMessage", () => {
   it("parses channel subscriptions", () => {
@@ -127,7 +132,7 @@ describe("parseRelayClientMessage", () => {
           ],
         }),
       ),
-    ).toThrow("Client message orderBooks must be an array of order-book requests.");
+    ).toThrow(ZodError);
   });
 
   it("parses bar subscriptions", () => {
@@ -173,6 +178,108 @@ describe("parseRelayClientMessage", () => {
           type: "unknown",
         }),
       ),
-    ).toThrow("Unsupported client message type.");
+    ).toThrow(ZodError);
+  });
+
+  it("rejects unknown message properties", () => {
+    expect(() =>
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "subscribe_trades",
+          trades: [{ symbol: "AAPL" }],
+          unexpected: true,
+        }),
+      ),
+    ).toThrow(ZodError);
+  });
+
+  it("rejects duplicate normalized subscriptions", () => {
+    expect(() =>
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "subscribe_market_summaries",
+          symbols: ["AAPL", "aapl"],
+        }),
+      ),
+    ).toThrow(ZodError);
+
+    expect(() =>
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "subscribe_quotes",
+          quotes: [
+            {
+              symbol: "BTC/USDT",
+              venue: "COINBASE",
+            },
+            {
+              symbol: "btc/usdt",
+              venue: "coinbase",
+            },
+          ],
+        }),
+      ),
+    ).toThrow(ZodError);
+  });
+
+  it("rejects excessive subscription cardinality", () => {
+    const symbols = Array.from(
+      {
+        length: RELAY_CLIENT_MESSAGE_MAX_ITEMS + 1,
+      },
+      (_, index) => `SYMBOL-${String(index)}`,
+    );
+
+    expect(() =>
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "subscribe_market_summaries",
+          symbols,
+        }),
+      ),
+    ).toThrow(ZodError);
+  });
+
+  it("rejects excessive total hydration cardinality", () => {
+    const symbols = Array.from({ length: 251 }, (_, index) => `SYMBOL-${String(index)}`);
+
+    const quotes = Array.from({ length: 250 }, (_, index) => ({
+      symbol: `QUOTE-${String(index)}`,
+    }));
+
+    expect(() =>
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "hydrate",
+          request: {
+            symbols,
+            quotes,
+          },
+        }),
+      ),
+    ).toThrow(ZodError);
+  });
+
+  it("rejects oversized client messages before JSON parsing", () => {
+    const rawMessage = "x".repeat(RELAY_CLIENT_MESSAGE_MAX_BYTES + 1);
+
+    expect(() => parseRelayClientMessage(rawMessage)).toThrow(RangeError);
+  });
+
+  it("rejects historical-only fields in live bar subscriptions", () => {
+    expect(() =>
+      parseRelayClientMessage(
+        JSON.stringify({
+          type: "subscribe_bars",
+          bars: [
+            {
+              symbol: "AAPL",
+              timeframe: "1Min",
+              limit: 100,
+            },
+          ],
+        }),
+      ),
+    ).toThrow(ZodError);
   });
 });

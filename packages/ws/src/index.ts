@@ -1,4 +1,9 @@
-export { parseRelayClientMessage } from "./client_message.js";
+export {
+  RELAY_CLIENT_MESSAGE_MAX_BYTES,
+  RELAY_CLIENT_MESSAGE_MAX_ITEMS,
+  parseRelayClientMessage,
+  relayClientMessageSchema,
+} from "./client_message.js";
 
 export type {
   HydrateMessage,
@@ -17,12 +22,18 @@ export type {
   UnsubscribeTradesMessage,
 } from "./client_message.js";
 
-export { RelayClientSession } from "./client_session.js";
-export { sendJson } from "./socket.js";
+export {
+  DEFAULT_RELAY_CLIENT_MAX_BUFFERED_BYTES,
+  DEFAULT_RELAY_CLIENT_MAX_SUBSCRIPTIONS,
+  RelayClientSession,
+  RelayClientSessionClosedError,
+  RelayClientSubscriptionLimitError,
+} from "./client_session.js";
+export { RelaySocketBackpressureError, sendJson } from "./socket.js";
 export { attachRelayNodeWsConnection, createRelayNodeWsServer } from "./ws_server.js";
 
 export type { RelayClientSessionOptions } from "./client_session.js";
-export type { RelaySocket } from "./socket.js";
+export type { RelaySocket, SendJsonOptions } from "./socket.js";
 
 export type {
   AttachRelayNodeWsConnectionOptions,

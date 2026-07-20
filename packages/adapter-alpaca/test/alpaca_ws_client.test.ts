@@ -131,8 +131,8 @@ describe("AlpacaStockWebSocketClient", () => {
         quoteAsset: "USD",
         venue: "D",
         providerTradeId: "96921",
-        price: 126.55,
-        quantity: 1,
+        price: "126.55",
+        quantity: "1",
         timestamp: "2021-02-22T15:51:44.208Z",
       },
     ]);

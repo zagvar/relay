@@ -1,26 +1,35 @@
+import { z } from "zod";
 import { normalizeSymbol } from "./symbols.js";
 import type { MarketDataCache } from "./market_data_cache.js";
-import type {
-  BarsRequest,
-  MarketBar,
-  MarketClock,
-  MarketDataRequest,
-  MarketQuote,
-  MarketSummary,
-  MarketTrade,
+import {
+  barsRequestSchema,
+  marketDataRequestSchema,
+  marketIdentifierSchema,
+  type BarsRequest,
+  type MarketBar,
+  type MarketClock,
+  type MarketDataRequest,
+  type MarketQuote,
+  type MarketSummary,
+  type MarketTrade,
 } from "./market_data.js";
 import type { OrderBookSnapshot } from "./order_book.js";
 
+/** Runtime schema for a cached market-data hydration request. */
+export const marketDataHydrationRequestSchema = z
+  .object({
+    symbols: z.array(marketIdentifierSchema).readonly().optional(),
+    quotes: z.array(marketDataRequestSchema).readonly().optional(),
+    trades: z.array(marketDataRequestSchema).readonly().optional(),
+    bars: z.array(barsRequestSchema).readonly().optional(),
+    orderBooks: z.array(marketDataRequestSchema).readonly().optional(),
+    includeMarketSummaries: z.boolean().optional(),
+    includeMarketClock: z.boolean().optional(),
+  })
+  .strict();
+
 /** Request for cached market data suitable for initial client hydration. */
-export interface MarketDataHydrationRequest {
-  readonly symbols?: readonly string[];
-  readonly quotes?: readonly MarketDataRequest[];
-  readonly trades?: readonly MarketDataRequest[];
-  readonly bars?: readonly BarsRequest[];
-  readonly orderBooks?: readonly MarketDataRequest[];
-  readonly includeMarketSummaries?: boolean;
-  readonly includeMarketClock?: boolean;
-}
+export type MarketDataHydrationRequest = Readonly<z.infer<typeof marketDataHydrationRequestSchema>>;
 
 /** Request for cached bars in a hydration response. */
 export type BarsHydrationRequest = BarsRequest;
@@ -45,6 +54,8 @@ export class MarketDataHydrator {
 
   /** Returns a hydration payload from the configured cache. */
   async hydrate(request: MarketDataHydrationRequest): Promise<MarketDataHydration> {
+    const parsedRequest = marketDataHydrationRequestSchema.parse(request);
+
     const hydration: {
       marketSummaries?: Readonly<Record<string, MarketSummary>>;
       latestQuotes?: readonly MarketQuote[];
@@ -54,29 +65,29 @@ export class MarketDataHydrator {
       marketClock?: MarketClock;
     } = {};
 
-    const symbols = request.symbols?.map(normalizeSymbol) ?? [];
+    const symbols = parsedRequest.symbols?.map(normalizeSymbol) ?? [];
 
-    if (request.includeMarketSummaries === true) {
+    if (parsedRequest.includeMarketSummaries === true) {
       hydration.marketSummaries = await this.#hydrateMarketSummaries(symbols);
     }
 
-    if (request.quotes !== undefined) {
-      hydration.latestQuotes = await this.#hydrateLatestQuotes(request.quotes);
+    if (parsedRequest.quotes !== undefined) {
+      hydration.latestQuotes = await this.#hydrateLatestQuotes(parsedRequest.quotes);
     }
 
-    if (request.trades !== undefined) {
-      hydration.latestTrades = await this.#hydrateLatestTrades(request.trades);
+    if (parsedRequest.trades !== undefined) {
+      hydration.latestTrades = await this.#hydrateLatestTrades(parsedRequest.trades);
     }
 
-    if (request.bars !== undefined) {
-      hydration.bars = await this.#hydrateBars(request.bars);
+    if (parsedRequest.bars !== undefined) {
+      hydration.bars = await this.#hydrateBars(parsedRequest.bars);
     }
 
-    if (request.orderBooks !== undefined) {
-      hydration.orderBookSnapshots = await this.#hydrateOrderBooks(request.orderBooks);
+    if (parsedRequest.orderBooks !== undefined) {
+      hydration.orderBookSnapshots = await this.#hydrateOrderBooks(parsedRequest.orderBooks);
     }
 
-    if (request.includeMarketClock === true) {
+    if (parsedRequest.includeMarketClock === true) {
       const marketClock = await this.#cache.getMarketClock();
 
       if (marketClock !== undefined) {

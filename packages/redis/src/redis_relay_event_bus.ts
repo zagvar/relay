@@ -1,9 +1,10 @@
-import type {
-  MarketEventChannel,
-  RelayEventBus,
-  RelayMessage,
-  RelayMessageHandler,
-  Unsubscribe,
+import {
+  parseRelayMessage,
+  type MarketEventChannel,
+  type RelayEventBus,
+  type RelayMessage,
+  type RelayMessageHandler,
+  type Unsubscribe,
 } from "@zagvar/relay-core";
 import { RelayRedisKeys, type RelayRedisKeyOptions } from "./redis_keys.js";
 import type {
@@ -34,21 +35,25 @@ export class RedisRelayEventBus implements RelayEventBus {
         : new RelayRedisKeys({ prefix: options.prefix });
   }
 
-  async publish<TData>(message: RelayMessage<TData>): Promise<void> {
+  async publish<TChannel extends MarketEventChannel>(
+    message: RelayMessage<TChannel>,
+  ): Promise<void> {
     await this.#publisher.publish(
       this.#keys.eventChannel(message.channel),
       JSON.stringify(message),
     );
   }
 
-  async subscribe<TData>(
-    channel: MarketEventChannel,
-    handler: RelayMessageHandler<TData>,
+  async subscribe<TChannel extends MarketEventChannel>(
+    channel: TChannel,
+    handler: RelayMessageHandler<TChannel>,
   ): Promise<Unsubscribe> {
     const redisChannel = this.#keys.eventChannel(channel);
 
     const redisHandler: RedisMessageHandler = async (rawMessage) => {
-      const message = JSON.parse(rawMessage) as RelayMessage<TData>;
+      const parsedMessage: unknown = JSON.parse(rawMessage);
+      const message = parseRelayMessage(parsedMessage, channel);
+
       await Promise.resolve(handler(message));
     };
 
