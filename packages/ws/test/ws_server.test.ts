@@ -8,6 +8,7 @@ import {
 } from "@zagvar/relay-core";
 import WebSocket from "ws";
 import { attachRelayNodeWsConnection, createRelayNodeWsServer } from "../src/ws_server.js";
+import { RELAY_CLIENT_MESSAGE_MAX_BYTES } from "../src/client_message.js";
 
 class FakeWsWebSocket extends EventEmitter {
   readyState: number = WebSocket.OPEN;
@@ -64,8 +65,8 @@ describe("attachRelayNodeWsConnection", () => {
       type: "trade",
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
-      quantity: 100,
+      price: "195.12",
+      quantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -100,10 +101,46 @@ describe("attachRelayNodeWsConnection", () => {
       },
     ]);
   });
+
+  it("enforces the configured connection subscription limit", async () => {
+    const eventBus = new MemoryRelayEventBus();
+    const websocket = new FakeWsWebSocket();
+
+    await attachRelayNodeWsConnection({
+      websocket: websocket.websocket,
+      eventBus,
+      maxSubscriptions: 1,
+    });
+
+    websocket.receiveText(
+      JSON.stringify({
+        type: "subscribe_trades",
+        trades: [{ symbol: "AAPL" }],
+      }),
+    );
+
+    await waitForMessageHandling();
+
+    websocket.receiveText(
+      JSON.stringify({
+        type: "subscribe_trades",
+        trades: [{ symbol: "MSFT" }],
+      }),
+    );
+
+    await waitForMessageHandling();
+
+    expect(websocket.closeEvents).toEqual([
+      {
+        code: 1008,
+        reason: "Invalid Relay client message.",
+      },
+    ]);
+  });
 });
 
 describe("createRelayNodeWsServer", () => {
-  it("creates a ws server without binding when noServer is enabled", () => {
+  it("creates a ws server with the safe default payload limit", () => {
     const eventBus = new MemoryRelayEventBus();
     const server = createRelayNodeWsServer({
       noServer: true,
@@ -111,9 +148,90 @@ describe("createRelayNodeWsServer", () => {
     });
 
     expect(server.options.noServer).toBe(true);
+    expect(server.options.maxPayload).toBe(RELAY_CLIENT_MESSAGE_MAX_BYTES);
 
     server.close();
   });
+
+  it("allows a smaller configured payload limit", () => {
+    const eventBus = new MemoryRelayEventBus();
+    const server = createRelayNodeWsServer({
+      noServer: true,
+      eventBus,
+      maxPayload: 16 * 1024,
+    });
+
+    expect(server.options.maxPayload).toBe(16 * 1024);
+
+    server.close();
+  });
+
+  it.each([0, -1, 1.5, RELAY_CLIENT_MESSAGE_MAX_BYTES + 1])(
+    "rejects invalid maxPayload %s",
+    (maxPayload) => {
+      const eventBus = new MemoryRelayEventBus();
+
+      expect(() =>
+        createRelayNodeWsServer({
+          noServer: true,
+          eventBus,
+          maxPayload,
+        }),
+      ).toThrow(RangeError);
+    },
+  );
+
+  it("accepts a per-connection subscription limit", () => {
+    const eventBus = new MemoryRelayEventBus();
+    const server = createRelayNodeWsServer({
+      noServer: true,
+      eventBus,
+      maxSubscriptions: 100,
+    });
+
+    server.close();
+  });
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])(
+    "rejects invalid server maxSubscriptions %s",
+    (maxSubscriptions) => {
+      const eventBus = new MemoryRelayEventBus();
+
+      expect(() =>
+        createRelayNodeWsServer({
+          noServer: true,
+          eventBus,
+          maxSubscriptions,
+        }),
+      ).toThrow(RangeError);
+    },
+  );
+
+  it("accepts a per-connection outbound buffer limit", () => {
+    const eventBus = new MemoryRelayEventBus();
+    const server = createRelayNodeWsServer({
+      noServer: true,
+      eventBus,
+      maxBufferedBytes: 512 * 1024,
+    });
+
+    server.close();
+  });
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])(
+    "rejects invalid server maxBufferedBytes %s",
+    (maxBufferedBytes) => {
+      const eventBus = new MemoryRelayEventBus();
+
+      expect(() =>
+        createRelayNodeWsServer({
+          noServer: true,
+          eventBus,
+          maxBufferedBytes,
+        }),
+      ).toThrow(RangeError);
+    },
+  );
 });
 
 function waitForMessageHandling(): Promise<void> {

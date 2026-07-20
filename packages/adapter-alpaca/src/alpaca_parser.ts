@@ -1,3 +1,5 @@
+import type { LosslessNumber } from "lossless-json";
+import { isLosslessNumber, parse as parseLosslessJson } from "lossless-json";
 import type {
   AlpacaControlMessage,
   AlpacaErrorMessage,
@@ -14,7 +16,7 @@ import type {
 export function parseAlpacaWebSocketMessageBatch(
   rawMessage: string,
 ): readonly AlpacaWebSocketMessage[] {
-  const value: unknown = JSON.parse(rawMessage);
+  const value: unknown = parseLosslessJson(rawMessage);
 
   if (!Array.isArray(value)) {
     throw new Error("Expected Alpaca websocket payload to be an array.");
@@ -67,7 +69,7 @@ export function isAlpacaErrorMessage(value: unknown): value is AlpacaErrorMessag
   return (
     isRecord(value) &&
     value.T === "error" &&
-    typeof value.code === "number" &&
+    isLosslessNumber(value.code) &&
     typeof value.msg === "string"
   );
 }
@@ -95,10 +97,10 @@ export function isAlpacaStockTradeMessage(value: unknown): value is AlpacaStockT
     isRecord(value) &&
     value.T === "t" &&
     typeof value.S === "string" &&
-    typeof value.i === "number" &&
+    isLosslessNumber(value.i) &&
     typeof value.x === "string" &&
-    typeof value.p === "number" &&
-    typeof value.s === "number" &&
+    isLosslessNumber(value.p) &&
+    isLosslessNumber(value.s) &&
     isStringArray(value.c) &&
     typeof value.t === "string" &&
     typeof value.z === "string"
@@ -112,11 +114,11 @@ export function isAlpacaStockQuoteMessage(value: unknown): value is AlpacaStockQ
     value.T === "q" &&
     typeof value.S === "string" &&
     typeof value.ax === "string" &&
-    typeof value.ap === "number" &&
-    typeof value.as === "number" &&
+    isLosslessNumber(value.ap) &&
+    isLosslessNumber(value.as) &&
     typeof value.bx === "string" &&
-    typeof value.bp === "number" &&
-    typeof value.bs === "number" &&
+    isLosslessNumber(value.bp) &&
+    isLosslessNumber(value.bs) &&
     isStringArray(value.c) &&
     typeof value.t === "string" &&
     typeof value.z === "string"
@@ -129,13 +131,13 @@ export function isAlpacaStockBarMessage(value: unknown): value is AlpacaStockBar
     isRecord(value) &&
     (value.T === "b" || value.T === "d" || value.T === "u") &&
     typeof value.S === "string" &&
-    typeof value.o === "number" &&
-    typeof value.h === "number" &&
-    typeof value.l === "number" &&
-    typeof value.c === "number" &&
-    typeof value.v === "number" &&
-    isOptionalNumber(value.vw) &&
-    isOptionalNumber(value.n) &&
+    isLosslessNumber(value.o) &&
+    isLosslessNumber(value.h) &&
+    isLosslessNumber(value.l) &&
+    isLosslessNumber(value.c) &&
+    isLosslessNumber(value.v) &&
+    isOptionalLosslessNumber(value.vw) &&
+    isOptionalLosslessNumber(value.n) &&
     typeof value.t === "string"
   );
 }
@@ -152,6 +154,6 @@ function isOptionalStringArray(value: unknown): value is readonly string[] | und
   return value === undefined || isStringArray(value);
 }
 
-function isOptionalNumber(value: unknown): value is number | undefined {
-  return value === undefined || typeof value === "number";
+function isOptionalLosslessNumber(value: unknown): value is LosslessNumber | undefined {
+  return value === undefined || isLosslessNumber(value);
 }

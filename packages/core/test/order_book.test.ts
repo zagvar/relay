@@ -9,12 +9,12 @@ const snapshot: OrderBookSnapshot = {
   baseAsset: "BTC",
   quoteAsset: "USDT",
   bids: [
-    { price: 65_000, quantity: 1.25 },
-    { price: 64_999.5, quantity: 0.8 },
+    { price: "65000", quantity: "1.25" },
+    { price: "64999.5", quantity: "0.8" },
   ],
   asks: [
-    { price: 65_000.5, quantity: 0.6 },
-    { price: 65_001, quantity: 1.1 },
+    { price: "65000.5", quantity: "0.6" },
+    { price: "65001", quantity: "1.1" },
   ],
   timestamp: "2026-01-01T14:30:00.000Z",
   sequence: 100,
@@ -24,12 +24,12 @@ describe("order-book contracts", () => {
   it("represents a complete provider-neutral snapshot", () => {
     expect(snapshot.type).toBe("order_book_snapshot");
     expect(snapshot.bids[0]).toEqual({
-      price: 65_000,
-      quantity: 1.25,
+      price: "65000",
+      quantity: "1.25",
     });
     expect(snapshot.asks[0]).toEqual({
-      price: 65_000.5,
-      quantity: 0.6,
+      price: "65000.5",
+      quantity: "0.6",
     });
   });
 
@@ -42,17 +42,17 @@ describe("order-book contracts", () => {
       baseAsset: "BTC",
       quoteAsset: "USDT",
       bids: [
-        { price: 65_000, quantity: 0 },
-        { price: 65_000.25, quantity: 0.5 },
+        { price: "65000", quantity: "0" },
+        { price: "65000.25", quantity: "0.5" },
       ],
-      asks: [{ price: 65_000.5, quantity: 0.4 }],
+      asks: [{ price: "65000.5", quantity: "0.4" }],
       timestamp: "2026-01-01T14:30:01.000Z",
       sequence: 101,
       previousSequence: 100,
       reset: false,
     };
 
-    expect(update.bids[0]?.quantity).toBe(0);
+    expect(update.bids[0]?.quantity).toBe("0");
     expect(update.previousSequence).toBe(snapshot.sequence);
   });
 

@@ -1,12 +1,15 @@
-import type {
-  OrderBookLevel,
-  OrderBookSnapshot,
-  OrderBookUpdate,
-  OrderBookUpdateLevel,
+import { compareDecimals } from "@zagvar/decimal";
+import {
+  MAX_ORDER_BOOK_LEVELS_PER_SIDE,
+  type OrderBookLevel,
+  type OrderBookSnapshot,
+  type OrderBookUpdate,
+  type OrderBookUpdateLevel,
 } from "./order_book.js";
 
 /** Reasons an update cannot be safely applied to the current snapshot. */
-export type OrderBookUpdateFailure = "instrument_mismatch" | "stale_sequence" | "sequence_gap";
+export type OrderBookUpdateFailure =
+  "instrument_mismatch" | "stale_sequence" | "sequence_gap" | "crossed_book";
 
 /** Result of reconciling an update with a local order-book snapshot. */
 export type OrderBookUpdateResult =
@@ -24,7 +27,7 @@ export interface ApplyOrderBookUpdateOptions {
   /**
    * Maximum number of levels retained on each side.
    *
-   * When omitted, all reconciled levels are retained.
+   * Defaults to `MAX_ORDER_BOOK_LEVELS_PER_SIDE` and cannot exceed it.
    */
   readonly depth?: number;
 }
@@ -40,6 +43,16 @@ export function applyOrderBookUpdate(
   update: OrderBookUpdate,
   options: ApplyOrderBookUpdateOptions = {},
 ): OrderBookUpdateResult {
+  const depth = options.depth ?? MAX_ORDER_BOOK_LEVELS_PER_SIDE;
+
+  if (!Number.isSafeInteger(depth) || depth <= 0 || depth > MAX_ORDER_BOOK_LEVELS_PER_SIDE) {
+    throw new RangeError(
+      `depth must be a positive safe integer no greater than ${String(
+        MAX_ORDER_BOOK_LEVELS_PER_SIDE,
+      )}.`,
+    );
+  }
+
   if (!hasMatchingIdentity(snapshot, update)) {
     return {
       applied: false,
@@ -65,12 +78,6 @@ export function applyOrderBookUpdate(
     };
   }
 
-  const depth = options.depth ?? Number.POSITIVE_INFINITY;
-
-  if (depth !== Number.POSITIVE_INFINITY && (!Number.isInteger(depth) || depth <= 0)) {
-    throw new RangeError("depth must be a positive integer.");
-  }
-
   const bids = reconcileSide(update.reset ? [] : snapshot.bids, update.bids, "descending").slice(
     0,
     depth,
@@ -80,6 +87,20 @@ export function applyOrderBookUpdate(
     0,
     depth,
   );
+
+  const bestBid = bids[0];
+  const bestAsk = asks[0];
+
+  if (
+    bestBid !== undefined &&
+    bestAsk !== undefined &&
+    compareDecimals(bestBid.price, bestAsk.price) > 0
+  ) {
+    return {
+      applied: false,
+      reason: "crossed_book",
+    };
+  }
 
   return {
     applied: true,
@@ -112,14 +133,16 @@ function reconcileSide(
 
   for (const update of updates) {
     /** An incremental update permits zero because it is the deletion instruction. */
-    if (update.quantity === 0) {
+    if (update.quantity === "0") {
       levels.delete(update.price);
     } else {
       levels.set(update.price, update);
     }
   }
 
-  return [...levels.values()].sort((left, right) =>
-    direction === "ascending" ? left.price - right.price : right.price - left.price,
-  );
+  return [...levels.values()].sort((left, right) => {
+    const comparison = compareDecimals(left.price, right.price);
+
+    return direction === "ascending" ? comparison : -comparison;
+  });
 }

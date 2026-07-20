@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RedisMarketDataCache } from "../src/redis_market_data_cache.js";
+import { RelayRedisKeys } from "../src/redis_keys.js";
 import { FakeRedisClient } from "./fake_redis_client.js";
 import type {
   MarketBar,
@@ -10,6 +11,22 @@ import type {
   OrderBookSnapshot,
 } from "@zagvar/relay-core";
 
+function createAaplBar(timestamp: string, overrides: Partial<MarketBar> = {}): MarketBar {
+  return {
+    type: "bar",
+    symbol: "AAPL",
+    assetClass: "equity",
+    timeframe: "1Min",
+    open: "194",
+    high: "196",
+    low: "193",
+    close: "195",
+    volume: "1000",
+    timestamp,
+    ...overrides,
+  };
+}
+
 describe("RedisMarketDataCache", () => {
   it("stores and returns latest quotes", async () => {
     const client = new FakeRedisClient();
@@ -18,10 +35,10 @@ describe("RedisMarketDataCache", () => {
       type: "quote",
       symbol: "AAPL",
       assetClass: "equity",
-      bidPrice: 195.1,
-      bidQuantity: 200,
-      askPrice: 195.12,
-      askQuantity: 100,
+      bidPrice: "195.1",
+      bidQuantity: "200",
+      askPrice: "195.12",
+      askQuantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -37,8 +54,8 @@ describe("RedisMarketDataCache", () => {
       type: "trade",
       symbol: "aapl",
       assetClass: "equity",
-      price: 195.12,
-      quantity: 100,
+      price: "195.12",
+      quantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -55,10 +72,10 @@ describe("RedisMarketDataCache", () => {
       symbol: "BTC/USDT",
       assetClass: "crypto",
       venue: "COINBASE",
-      bidPrice: 65_000,
-      bidQuantity: 1,
-      askPrice: 65_001,
-      askQuantity: 1,
+      bidPrice: "65000",
+      bidQuantity: "1",
+      askPrice: "65001",
+      askQuantity: "1",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -82,8 +99,8 @@ describe("RedisMarketDataCache", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bids: [{ price: 65_000, quantity: 1.25 }],
-      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      bids: [{ price: "65000", quantity: "1.25" }],
+      asks: [{ price: "65000.5", quantity: "0.8" }],
       timestamp: "2026-01-01T14:30:00.000Z",
       sequence: 100,
     };
@@ -108,8 +125,8 @@ describe("RedisMarketDataCache", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bids: [{ price: 65_000, quantity: 1.25 }],
-      asks: [{ price: 65_000.5, quantity: 0.8 }],
+      bids: [{ price: "65000", quantity: "1.25" }],
+      asks: [{ price: "65000.5", quantity: "0.8" }],
       timestamp: "2026-01-01T14:30:00.000Z",
       sequence: 100,
     };
@@ -136,7 +153,7 @@ describe("RedisMarketDataCache", () => {
     const marketSummary: MarketSummary = {
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
+      price: "195.12",
     };
 
     await cache.setMarketSummary(marketSummary);
@@ -151,7 +168,7 @@ describe("RedisMarketDataCache", () => {
       aapl: {
         symbol: "aapl",
         assetClass: "equity",
-        price: 195.12,
+        price: "195.12",
       },
     };
 
@@ -160,6 +177,23 @@ describe("RedisMarketDataCache", () => {
     expect(await cache.getMarketSummaries()).toEqual({
       AAPL: marketSummaries.aapl,
     });
+  });
+
+  it("rejects market-summary batches whose keys disagree with their values", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+
+    await expect(
+      cache.setMarketSummaries({
+        MSFT: {
+          symbol: "AAPL",
+          assetClass: "equity",
+          price: "195.12",
+        },
+      }),
+    ).rejects.toMatchObject({ name: "ZodError" });
+
+    await expect(cache.getMarketSummaries()).resolves.toEqual({});
   });
 
   it("expires marketSummaries when ttl is configured", async () => {
@@ -173,7 +207,7 @@ describe("RedisMarketDataCache", () => {
       AAPL: {
         symbol: "AAPL",
         assetClass: "equity",
-        price: 195.12,
+        price: "195.12",
       },
     });
 
@@ -190,16 +224,16 @@ describe("RedisMarketDataCache", () => {
       symbol: "AAPL",
       assetClass: "equity",
       timeframe: "1Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp: "2026-01-01T14:31:00.000Z",
     };
     const secondBar: MarketBar = {
       ...firstBar,
-      close: 194,
+      close: "194",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -224,20 +258,20 @@ describe("RedisMarketDataCache", () => {
       baseAsset: "BTC",
       quoteAsset: "USDT",
       timeframe: "1Min",
-      open: 65_000,
-      high: 65_100,
-      low: 64_950,
-      close: 65_050,
-      volume: 12.5,
+      open: "65000",
+      high: "65100",
+      low: "64950",
+      close: "65050",
+      volume: "12.5",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     const binanceBar: MarketBar = {
       ...coinbaseBar,
       venue: "BINANCE",
-      high: 65_120,
-      close: 65_075,
-      volume: 18.25,
+      high: "65120",
+      close: "65075",
+      volume: "18.25",
     };
 
     await cache.appendBar(coinbaseBar);
@@ -313,11 +347,11 @@ describe("RedisMarketDataCache", () => {
       symbol: "AAPL",
       assetClass: "equity",
       timeframe: "1Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp,
     });
 
@@ -351,11 +385,11 @@ describe("RedisMarketDataCache", () => {
       symbol: "AAPL",
       assetClass: "equity",
       timeframe: "1Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -380,11 +414,11 @@ describe("RedisMarketDataCache", () => {
       symbol: "AAPL",
       assetClass: "equity",
       timeframe: "5Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -397,5 +431,217 @@ describe("RedisMarketDataCache", () => {
     await cache.appendBar(secondBar);
 
     expect(await cache.getBars({ symbol: "AAPL", timeframe: "5Min" })).toEqual([secondBar]);
+  });
+
+  it("replaces a Redis bar with the same timestamp", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+
+    const initialBar = createAaplBar("2026-01-01T14:30:00.000Z");
+
+    const correctedBar = createAaplBar("2026-01-01T14:30:00.000Z", {
+      high: "197",
+      close: "196",
+      volume: "1200",
+    });
+
+    await cache.appendBar(initialBar);
+    await cache.appendBar(correctedBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "AAPL",
+        timeframe: "1Min",
+      }),
+    ).resolves.toEqual([correctedBar]);
+  });
+
+  it("applies inclusive Redis bar ranges", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+
+    const firstBar = createAaplBar("2026-01-01T14:30:00.000Z");
+    const secondBar = createAaplBar("2026-01-01T14:31:00.000Z");
+    const thirdBar = createAaplBar("2026-01-01T14:32:00.000Z");
+
+    await cache.appendBar(firstBar);
+    await cache.appendBar(secondBar);
+    await cache.appendBar(thirdBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "AAPL",
+        timeframe: "1Min",
+        start: secondBar.timestamp,
+        end: thirdBar.timestamp,
+      }),
+    ).resolves.toEqual([secondBar, thirdBar]);
+  });
+
+  it("returns the most recent limited Redis bars chronologically", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+
+    const firstBar = createAaplBar("2026-01-01T14:30:00.000Z");
+    const secondBar = createAaplBar("2026-01-01T14:31:00.000Z");
+    const thirdBar = createAaplBar("2026-01-01T14:32:00.000Z");
+
+    await cache.appendBar(firstBar);
+    await cache.appendBar(secondBar);
+    await cache.appendBar(thirdBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "AAPL",
+        timeframe: "1Min",
+        limit: 2,
+      }),
+    ).resolves.toEqual([secondBar, thirdBar]);
+  });
+
+  it("limits within the requested Redis bar range", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+
+    const firstBar = createAaplBar("2026-01-01T14:30:00.000Z");
+    const secondBar = createAaplBar("2026-01-01T14:31:00.000Z");
+    const thirdBar = createAaplBar("2026-01-01T14:32:00.000Z");
+    const fourthBar = createAaplBar("2026-01-01T14:33:00.000Z");
+
+    await cache.appendBar(firstBar);
+    await cache.appendBar(secondBar);
+    await cache.appendBar(thirdBar);
+    await cache.appendBar(fourthBar);
+
+    await expect(
+      cache.getBars({
+        symbol: "AAPL",
+        timeframe: "1Min",
+        start: firstBar.timestamp,
+        end: thirdBar.timestamp,
+        limit: 2,
+      }),
+    ).resolves.toEqual([secondBar, thirdBar]);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects invalid market-summary TTL %s",
+    (ttlSeconds) => {
+      const client = new FakeRedisClient();
+
+      expect(
+        () =>
+          new RedisMarketDataCache({
+            client,
+            marketSummaryTtlSeconds: ttlSeconds,
+          }),
+      ).toThrow(RangeError);
+    },
+  );
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects invalid market-clock TTL %s",
+    (ttlSeconds) => {
+      const client = new FakeRedisClient();
+
+      expect(
+        () =>
+          new RedisMarketDataCache({
+            client,
+            marketClockTtlSeconds: ttlSeconds,
+          }),
+      ).toThrow(RangeError);
+    },
+  );
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER])("rejects invalid maxBars %s", (maxBars) => {
+    const client = new FakeRedisClient();
+
+    expect(
+      () =>
+        new RedisMarketDataCache({
+          client,
+          barRetention: {
+            default: { maxBars },
+          },
+        }),
+    ).toThrow(RangeError);
+  });
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])("rejects invalid bar TTL %s", (ttlSeconds) => {
+    const client = new FakeRedisClient();
+
+    expect(
+      () =>
+        new RedisMarketDataCache({
+          client,
+          barRetention: {
+            default: { ttlSeconds },
+          },
+        }),
+    ).toThrow(RangeError);
+  });
+
+  it.each(["", " 1Min", "1Min ", "A".repeat(33)])(
+    "rejects invalid retention timeframe %j",
+    (timeframe) => {
+      const client = new FakeRedisClient();
+
+      expect(
+        () =>
+          new RedisMarketDataCache({
+            client,
+            barRetention: {
+              byTimeframe: {
+                [timeframe]: {
+                  maxBars: 100,
+                },
+              },
+            },
+          }),
+      ).toThrow(TypeError);
+    },
+  );
+
+  it("rejects cached legacy numeric economic values", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+    const keys = new RelayRedisKeys();
+
+    await client.hSet(
+      keys.latestTrades(),
+      keys.marketDataField({ symbol: "AAPL" }),
+      JSON.stringify({
+        type: "trade",
+        symbol: "AAPL",
+        assetClass: "equity",
+        price: 195.12,
+        quantity: 100,
+        timestamp: "2026-01-01T14:30:00.000Z",
+      }),
+    );
+
+    await expect(cache.getLatestTrade({ symbol: "AAPL" })).rejects.toThrow();
+  });
+
+  it("rejects cached non-canonical decimal strings", async () => {
+    const client = new FakeRedisClient();
+    const cache = new RedisMarketDataCache({ client });
+    const keys = new RelayRedisKeys();
+
+    await client.hSet(
+      keys.latestTrades(),
+      keys.marketDataField({ symbol: "AAPL" }),
+      JSON.stringify({
+        type: "trade",
+        symbol: "AAPL",
+        assetClass: "equity",
+        price: "195.120",
+        quantity: "100",
+        timestamp: "2026-01-01T14:30:00.000Z",
+      }),
+    );
+
+    await expect(cache.getLatestTrade({ symbol: "AAPL" })).rejects.toThrow();
   });
 });

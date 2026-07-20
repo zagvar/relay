@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { AlpacaWebSocketError, parseAlpacaStockMarketEvents } from "../src/index.js";
 
 describe("Alpaca event parser", () => {
+  it("preserves precise decimal literals from raw websocket JSON", () => {
+    expect(
+      parseAlpacaStockMarketEvents(
+        '[{"T":"t","i":96921,"S":"AAPL","x":"D","p":126.550000000000000001,"s":0.000000000000000001,"t":"2021-02-22T15:51:44.208Z","c":["@"],"z":"C"}]',
+      ),
+    ).toMatchObject([
+      {
+        type: "trade",
+        price: "126.550000000000000001",
+        quantity: "0.000000000000000001",
+      },
+    ]);
+  });
+
   it("maps stock market data messages to Relay events", () => {
     expect(
       parseAlpacaStockMarketEvents(
@@ -44,8 +58,8 @@ describe("Alpaca event parser", () => {
         quoteAsset: "USD",
         venue: "D",
         providerTradeId: "96921",
-        price: 126.55,
-        quantity: 1,
+        price: "126.55",
+        quantity: "1",
         timestamp: "2021-02-22T15:51:44.208Z",
       },
       {
@@ -55,10 +69,10 @@ describe("Alpaca event parser", () => {
         quoteAsset: "USD",
         bidVenue: "U",
         askVenue: "Q",
-        bidPrice: 87.66,
-        bidQuantity: 100,
-        askPrice: 87.68,
-        askQuantity: 400,
+        bidPrice: "87.66",
+        bidQuantity: "100",
+        askPrice: "87.68",
+        askQuantity: "400",
         timestamp: "2021-02-22T15:51:45.335689322Z",
       },
     ]);

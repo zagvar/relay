@@ -1,6 +1,7 @@
 import type { MarketEvent } from "@zagvar/relay-core";
 import type { AlpacaErrorMessage, AlpacaWebSocketMessage } from "./alpaca_message.js";
 import { mapAlpacaStockMarketDataMessage } from "./alpaca_mapper.js";
+import { toSafeNonNegativeInteger } from "./alpaca_number.js";
 import {
   isAlpacaErrorMessage,
   isAlpacaStockMarketDataMessage,
@@ -12,10 +13,12 @@ export class AlpacaWebSocketError extends Error {
   readonly code: number;
 
   constructor(message: AlpacaErrorMessage) {
-    super(`Alpaca websocket error ${String(message.code)}: ${message.msg}`);
+    const code = toSafeNonNegativeInteger(message.code, "Alpaca websocket error code");
+
+    super(`Alpaca websocket error ${String(code)}: ${message.msg}`);
 
     this.name = "AlpacaWebSocketError";
-    this.code = message.code;
+    this.code = code;
   }
 }
 

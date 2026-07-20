@@ -1,16 +1,17 @@
 import { MARKET_EVENT_CHANNEL, createRelayMessage } from "./event_channel.js";
 import type { RelayEventBus } from "./event_bus.js";
-import type { MarketDataCache } from "./market_data_cache.js";
-import type {
-  MarketBar,
-  MarketClock,
-  MarketEvent,
-  MarketQuote,
-  MarketSummary,
-  MarketTrade,
+import { marketSummaryBatchSchema, type MarketDataCache } from "./market_data_cache.js";
+import {
+  marketClockSchema,
+  marketSummarySchema,
+  type MarketBar,
+  type MarketClock,
+  type MarketQuote,
+  type MarketSummary,
+  type MarketTrade,
 } from "./market_data.js";
+import { marketEventSchema, type MarketEvent } from "./market_event.js";
 import type { OrderBookSnapshot, OrderBookUpdate } from "./order_book.js";
-
 import { applyOrderBookUpdate, type OrderBookUpdateFailure } from "./order_book_reducer.js";
 
 export type OrderBookPipelineErrorCode = "snapshot_missing" | OrderBookUpdateFailure;
@@ -50,25 +51,27 @@ export class MarketDataPipeline {
 
   /** Stores and publishes one normalized market event. */
   async processEvent(event: MarketEvent): Promise<void> {
-    switch (event.type) {
+    const parsedEvent = marketEventSchema.parse(event);
+
+    switch (parsedEvent.type) {
       case "quote":
-        await this.#processQuote(event);
+        await this.#processQuote(parsedEvent);
         return;
 
       case "trade":
-        await this.#processTrade(event);
+        await this.#processTrade(parsedEvent);
         return;
 
       case "bar":
-        await this.#processBar(event);
+        await this.#processBar(parsedEvent);
         return;
 
       case "order_book_snapshot":
-        await this.#processOrderBookSnapshot(event);
+        await this.#processOrderBookSnapshot(parsedEvent);
         return;
 
       case "order_book_update":
-        await this.#processOrderBookUpdate(event);
+        await this.#processOrderBookUpdate(parsedEvent);
         return;
     }
   }
@@ -77,9 +80,11 @@ export class MarketDataPipeline {
   async processMarketSummaries(
     marketSummaries: Readonly<Record<string, MarketSummary>>,
   ): Promise<void> {
-    await this.#cache.setMarketSummaries(marketSummaries);
+    const parsedMarketSummaries = marketSummaryBatchSchema.parse(marketSummaries);
 
-    for (const marketSummary of Object.values(marketSummaries)) {
+    await this.#cache.setMarketSummaries(parsedMarketSummaries);
+
+    for (const marketSummary of Object.values(parsedMarketSummaries)) {
       await this.#eventBus.publish(
         createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, marketSummary),
       );
@@ -88,31 +93,39 @@ export class MarketDataPipeline {
 
   /** Stores and publishes one current market summary. */
   async processMarketSummary(marketSummary: MarketSummary): Promise<void> {
-    await this.#cache.setMarketSummary(marketSummary);
+    const parsedMarketSummary = marketSummarySchema.parse(marketSummary);
+
+    await this.#cache.setMarketSummary(parsedMarketSummary);
 
     await this.#eventBus.publish(
-      createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, marketSummary),
+      createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, parsedMarketSummary),
     );
   }
 
   /** Stores and publishes the latest market clock. */
   async processMarketClock(clock: MarketClock): Promise<void> {
-    await this.#cache.setMarketClock(clock);
-    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketClock, clock));
+    const parsedClock = marketClockSchema.parse(clock);
+
+    await this.#cache.setMarketClock(parsedClock);
+
+    await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketClock, parsedClock));
   }
 
   async #processQuote(quote: MarketQuote): Promise<void> {
     await this.#cache.setLatestQuote(quote);
+
     await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.quote, quote));
   }
 
   async #processTrade(trade: MarketTrade): Promise<void> {
     await this.#cache.setLatestTrade(trade);
+
     await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, trade));
   }
 
   async #processBar(bar: MarketBar): Promise<void> {
     await this.#cache.appendBar(bar);
+
     await this.#eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.bar, bar));
   }
 

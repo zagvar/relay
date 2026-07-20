@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { MARKET_EVENT_CHANNEL, createRelayMessage } from "../src/event_channel.js";
 import { MemoryRelayEventBus } from "../src/event_bus.js";
 
+const trade = {
+  type: "trade",
+  symbol: "AAPL",
+  assetClass: "equity",
+  price: "195.12",
+  quantity: "100",
+  timestamp: "2026-07-20T01:00:00Z",
+} as const;
+
 describe("MemoryRelayEventBus", () => {
   it("publishes messages to subscribers on the same channel", async () => {
     const eventBus = new MemoryRelayEventBus();
@@ -11,18 +20,12 @@ describe("MemoryRelayEventBus", () => {
       receivedMessages.push(message);
     });
 
-    await eventBus.publish(
-      createRelayMessage(MARKET_EVENT_CHANNEL.trade, {
-        symbol: "AAPL",
-      }),
-    );
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, trade));
 
     expect(receivedMessages).toEqual([
       {
         channel: "trade",
-        data: {
-          symbol: "AAPL",
-        },
+        data: trade,
       },
     ]);
   });
@@ -35,11 +38,7 @@ describe("MemoryRelayEventBus", () => {
       receivedMessages.push(message);
     });
 
-    await eventBus.publish(
-      createRelayMessage(MARKET_EVENT_CHANNEL.trade, {
-        symbol: "AAPL",
-      }),
-    );
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, trade));
 
     expect(receivedMessages).toEqual([]);
   });
@@ -54,11 +53,7 @@ describe("MemoryRelayEventBus", () => {
 
     await unsubscribe();
 
-    await eventBus.publish(
-      createRelayMessage(MARKET_EVENT_CHANNEL.trade, {
-        symbol: "AAPL",
-      }),
-    );
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, trade));
 
     expect(receivedMessages).toEqual([]);
   });

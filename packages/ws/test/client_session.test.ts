@@ -17,13 +17,29 @@ import type { RelaySocket } from "../src/socket.js";
 
 class FakeSocket implements RelaySocket {
   readonly sentMessages: string[] = [];
+  bufferedAmount = 0;
+
+  readonly closeEvents: {
+    readonly code: number | undefined;
+    readonly reason: string | undefined;
+  }[] = [];
 
   send(message: string): void {
     this.sentMessages.push(message);
   }
 
+  close(code?: number, reason?: string): void {
+    this.closeEvents.push({ code, reason });
+  }
+
   get sentPayloads(): unknown[] {
     return this.sentMessages.map((message) => JSON.parse(message) as unknown);
+  }
+}
+
+class ThrowingCloseSocket extends FakeSocket {
+  override close(): void {
+    throw new Error("Socket close failed.");
   }
 }
 
@@ -35,14 +51,14 @@ describe("RelayClientSession", () => {
     const aaplSummary: MarketSummary = {
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
-      previousClose: 190,
+      price: "195.12",
+      previousClose: "190",
     };
     const msftSummary: MarketSummary = {
       symbol: "MSFT",
       assetClass: "equity",
-      price: 420.5,
-      previousClose: 415,
+      price: "420.5",
+      previousClose: "415",
     };
 
     await session.start();
@@ -86,10 +102,10 @@ describe("RelayClientSession", () => {
       symbol: "AAPL",
       assetClass: "equity",
       venue: "NASDAQ",
-      bidPrice: 195.1,
-      bidQuantity: 200,
-      askPrice: 195.12,
-      askQuantity: 100,
+      bidPrice: "195.1",
+      bidQuantity: "200",
+      askPrice: "195.12",
+      askQuantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -124,7 +140,7 @@ describe("RelayClientSession", () => {
     ]);
   });
 
-  it("forwards subscribed trade messages", async () => {
+  it("forwards precise decimal-string trade messages", async () => {
     const socket = new FakeSocket();
     const eventBus = new MemoryRelayEventBus();
     const session = new RelayClientSession({ socket, eventBus });
@@ -132,8 +148,8 @@ describe("RelayClientSession", () => {
       type: "trade",
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
-      quantity: 100,
+      price: "195.120000000000000001",
+      quantity: "0.000000000000000001",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -157,6 +173,8 @@ describe("RelayClientSession", () => {
         },
       },
     ]);
+    expect(socket.sentMessages[0]).toContain('"price":"195.120000000000000001"');
+    expect(socket.sentMessages[0]).toContain('"quantity":"0.000000000000000001"');
   });
 
   it("forwards trades only for the subscribed venue", async () => {
@@ -174,15 +192,15 @@ describe("RelayClientSession", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      price: 65_000.5,
-      quantity: 0.1,
+      price: "65000.5",
+      quantity: "0.1",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
     const binanceTrade: MarketTrade = {
       ...coinbaseTrade,
       venue: "BINANCE",
-      price: 65_002.5,
+      price: "65002.5",
     };
 
     await session.start();
@@ -222,8 +240,8 @@ describe("RelayClientSession", () => {
       type: "trade",
       symbol: "MSFT",
       assetClass: "equity",
-      price: 420.5,
-      quantity: 100,
+      price: "420.5",
+      quantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -256,8 +274,8 @@ describe("RelayClientSession", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bids: [{ price: 65_000, quantity: 1.25 }],
-      asks: [{ price: 65_001, quantity: 0.8 }],
+      bids: [{ price: "65000", quantity: "1.25" }],
+      asks: [{ price: "65001", quantity: "0.8" }],
       timestamp: "2026-01-01T14:30:00.000Z",
       sequence: 100,
     };
@@ -265,8 +283,8 @@ describe("RelayClientSession", () => {
     const binanceSnapshot: OrderBookSnapshot = {
       ...coinbaseSnapshot,
       venue: "BINANCE",
-      bids: [{ price: 65_002, quantity: 1.5 }],
-      asks: [{ price: 65_003, quantity: 0.9 }],
+      bids: [{ price: "65002", quantity: "1.5" }],
+      asks: [{ price: "65003", quantity: "0.9" }],
     };
 
     const coinbaseUpdate: OrderBookUpdate = {
@@ -276,8 +294,8 @@ describe("RelayClientSession", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bids: [{ price: 65_000, quantity: 2 }],
-      asks: [{ price: 65_001, quantity: 0 }],
+      bids: [{ price: "65000", quantity: "2" }],
+      asks: [{ price: "65001", quantity: "0" }],
       timestamp: "2026-01-01T14:30:01.000Z",
       sequence: 101,
       previousSequence: 100,
@@ -348,11 +366,11 @@ describe("RelayClientSession", () => {
       symbol: "AAPL",
       assetClass: "equity",
       timeframe: "1Min",
-      open: 190,
-      high: 196,
-      low: 189,
-      close: 195,
-      volume: 120_000,
+      open: "190",
+      high: "196",
+      low: "189",
+      close: "195",
+      volume: "120000",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -389,7 +407,7 @@ describe("RelayClientSession", () => {
       AAPL: {
         symbol: "AAPL",
         assetClass: "equity",
-        price: 195.12,
+        price: "195.12",
       },
     });
 
@@ -411,7 +429,7 @@ describe("RelayClientSession", () => {
             AAPL: {
               symbol: "AAPL",
               assetClass: "equity",
-              price: 195.12,
+              price: "195.12",
             },
           },
         },
@@ -437,8 +455,8 @@ describe("RelayClientSession", () => {
       venue: "COINBASE",
       baseAsset: "BTC",
       quoteAsset: "USDT",
-      bids: [{ price: 65_000, quantity: 1.25 }],
-      asks: [{ price: 65_001, quantity: 0.8 }],
+      bids: [{ price: "65000", quantity: "1.25" }],
+      asks: [{ price: "65001", quantity: "0.8" }],
       timestamp: "2026-01-01T14:30:00.000Z",
       sequence: 100,
     };
@@ -481,8 +499,8 @@ describe("RelayClientSession", () => {
       type: "trade",
       symbol: "AAPL",
       assetClass: "equity",
-      price: 195.12,
-      quantity: 100,
+      price: "195.12",
+      quantity: "100",
       timestamp: "2026-01-01T14:30:00.000Z",
     };
 
@@ -500,4 +518,296 @@ describe("RelayClientSession", () => {
 
     expect(socket.sentPayloads).toEqual([]);
   });
+
+  it("enforces the cumulative subscription limit atomically", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+      maxSubscriptions: 2,
+    });
+
+    await session.start();
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_market_summaries",
+        symbols: ["AAPL"],
+      }),
+    );
+
+    await expect(
+      session.handleMessage(
+        JSON.stringify({
+          type: "subscribe_market_summaries",
+          symbols: ["MSFT", "TSLA"],
+        }),
+      ),
+    ).rejects.toMatchObject({
+      name: "RelayClientSubscriptionLimitError",
+      limit: 2,
+    });
+
+    const aaplSummary: MarketSummary = {
+      symbol: "AAPL",
+      assetClass: "equity",
+      price: "195",
+    };
+
+    const msftSummary: MarketSummary = {
+      symbol: "MSFT",
+      assetClass: "equity",
+      price: "420",
+    };
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, aaplSummary));
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.marketSummary, msftSummary));
+
+    expect(socket.sentPayloads).toEqual([
+      {
+        type: "relay_message",
+        data: {
+          channel: "market_summary",
+          data: aaplSummary,
+        },
+      },
+    ]);
+  });
+
+  it("does not count an existing subscription twice", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+      maxSubscriptions: 2,
+    });
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_market_summaries",
+        symbols: ["AAPL"],
+      }),
+    );
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_market_summaries",
+        symbols: ["aapl"],
+      }),
+    );
+
+    await expect(
+      session.handleMessage(
+        JSON.stringify({
+          type: "subscribe_market_summaries",
+          symbols: ["MSFT"],
+        }),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])(
+    "rejects invalid maxSubscriptions %s",
+    (maxSubscriptions) => {
+      const socket = new FakeSocket();
+      const eventBus = new MemoryRelayEventBus();
+
+      expect(
+        () =>
+          new RelayClientSession({
+            socket,
+            eventBus,
+            maxSubscriptions,
+          }),
+      ).toThrow(RangeError);
+    },
+  );
+
+  it("starts only once when called repeatedly", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+    });
+
+    await Promise.all([session.start(), session.start()]);
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_trades",
+        trades: [{ symbol: "AAPL" }],
+      }),
+    );
+
+    const trade: MarketTrade = {
+      type: "trade",
+      symbol: "AAPL",
+      assetClass: "equity",
+      price: "195",
+      quantity: "1",
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, trade));
+
+    expect(socket.sentPayloads).toHaveLength(1);
+  });
+
+  it("allows close to be called repeatedly", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+    });
+
+    await session.start();
+
+    await expect(Promise.all([session.close(), session.close()])).resolves.toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it("rejects messages and start attempts after closure", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+    });
+
+    await session.start();
+    await session.close();
+
+    await expect(
+      session.handleMessage(
+        JSON.stringify({
+          type: "subscribe_trades",
+          trades: [{ symbol: "AAPL" }],
+        }),
+      ),
+    ).rejects.toMatchObject({
+      name: "RelayClientSessionClosedError",
+    });
+
+    await expect(session.start()).rejects.toMatchObject({
+      name: "RelayClientSessionClosedError",
+    });
+  });
+
+  it("closes a slow client without failing the event publisher", async () => {
+    const socket = new FakeSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const errors: unknown[] = [];
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+      maxBufferedBytes: 100,
+      onError: (error) => {
+        errors.push(error);
+      },
+    });
+
+    await session.start();
+
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_trades",
+        trades: [{ symbol: "AAPL" }],
+      }),
+    );
+
+    socket.bufferedAmount = 100;
+
+    const trade: MarketTrade = {
+      type: "trade",
+      symbol: "AAPL",
+      assetClass: "equity",
+      price: "195",
+      quantity: "1",
+      timestamp: "2026-01-01T14:30:00.000Z",
+    };
+
+    await expect(
+      eventBus.publish(createRelayMessage(MARKET_EVENT_CHANNEL.trade, trade)),
+    ).resolves.toBeUndefined();
+
+    expect(socket.sentMessages).toEqual([]);
+    expect(socket.closeEvents).toEqual([
+      {
+        code: 1013,
+        reason: "Relay client is consuming messages too slowly.",
+      },
+    ]);
+
+    expect(errors).toEqual([
+      expect.objectContaining({
+        name: "RelaySocketBackpressureError",
+      }),
+    ]);
+  });
+
+  it("reports a synchronous socket close failure without failing the event publisher", async () => {
+    const socket = new ThrowingCloseSocket();
+    const eventBus = new MemoryRelayEventBus();
+    const errors: unknown[] = [];
+    const session = new RelayClientSession({
+      socket,
+      eventBus,
+      maxBufferedBytes: 100,
+      onError: (error) => {
+        errors.push(error);
+      },
+    });
+
+    await session.start();
+    await session.handleMessage(
+      JSON.stringify({
+        type: "subscribe_trades",
+        trades: [{ symbol: "AAPL" }],
+      }),
+    );
+
+    socket.bufferedAmount = 100;
+
+    await expect(
+      eventBus.publish(
+        createRelayMessage(MARKET_EVENT_CHANNEL.trade, {
+          type: "trade",
+          symbol: "AAPL",
+          assetClass: "equity",
+          price: "195",
+          quantity: "1",
+          timestamp: "2026-01-01T14:30:00.000Z",
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(errors).toEqual([
+      expect.objectContaining({ name: "RelaySocketBackpressureError" }),
+      expect.objectContaining({ message: "Socket close failed." }),
+    ]);
+  });
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])(
+    "rejects invalid maxBufferedBytes %s",
+    (maxBufferedBytes) => {
+      const socket = new FakeSocket();
+      const eventBus = new MemoryRelayEventBus();
+
+      expect(
+        () =>
+          new RelayClientSession({
+            socket,
+            eventBus,
+            maxBufferedBytes,
+          }),
+      ).toThrow(RangeError);
+    },
+  );
 });

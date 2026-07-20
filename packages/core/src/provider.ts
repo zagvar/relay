@@ -3,9 +3,9 @@ import type {
   MarketBar,
   MarketClock,
   MarketDataRequest,
-  MarketEvent,
   MarketSummary,
 } from "./market_data.js";
+import type { MarketEvent } from "./market_event.js";
 import type { OrderBookSnapshot } from "./order_book.js";
 import type { ProviderCapabilities } from "./provider_capability.js";
 

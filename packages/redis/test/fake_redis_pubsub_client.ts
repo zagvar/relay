@@ -8,18 +8,16 @@ import type {
 export class FakeRedisPubSubClient implements RedisPublishClient, RedisSubscribeClient {
   readonly #handlersByChannel = new Map<string, Set<RedisMessageHandler>>();
 
-  publish(channel: string, message: string): Promise<number> {
+  async publish(channel: string, message: string): Promise<number> {
     const handlers = this.#handlersByChannel.get(channel);
 
     if (handlers === undefined) {
-      return Promise.resolve(0);
+      return 0;
     }
 
-    for (const handler of handlers) {
-      void Promise.resolve(handler(message));
-    }
+    await Promise.all([...handlers].map((handler) => Promise.resolve(handler(message))));
 
-    return Promise.resolve(handlers.size);
+    return handlers.size;
   }
 
   subscribe(channel: string, handler: RedisMessageHandler): Promise<void> {
