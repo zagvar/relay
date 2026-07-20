@@ -1,6 +1,6 @@
 {
   "name": "@zagvar/relay-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Provider-neutral market data contracts and utilities for Zagvar Relay.",
   "type": "module",
   "license": "MIT",
